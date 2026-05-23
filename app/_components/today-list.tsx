@@ -129,7 +129,7 @@ function DoseRow({
               (slot.taken ? "text-ink-faint line-through decoration-edge-2" : "text-ink")
             }
           >
-            {profile ? <ProfileBadge profile={profile} size={16} /> : null}
+            {profile ? <ProfileBadge profile={profile} size={20} /> : null}
             <span className="min-w-0 truncate">{slot.med.name}</span>
           </div>
           <div className="mt-1 text-[13px] tnum text-ink-faint">

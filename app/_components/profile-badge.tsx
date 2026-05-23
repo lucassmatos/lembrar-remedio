@@ -5,13 +5,14 @@ import { profileFill, profileInitial, profileSoftFill } from "@/lib/profile-ui";
 
 export function ProfileBadge({
   profile,
-  size = 18,
+  size = 20,
   title,
 }: {
   profile: Profile;
   size?: number;
   title?: string;
 }) {
+  const showInitial = size >= 18;
   const initial = profileInitial(profile);
   return (
     <span
@@ -21,14 +22,15 @@ export function ProfileBadge({
       style={{
         width: size,
         height: size,
-        background: profileSoftFill(profile.color),
+        background: showInitial ? profileSoftFill(profile.color) : profileFill(profile.color),
         color: profileFill(profile.color),
-        fontSize: Math.round(size * 0.55),
+        fontSize: Math.max(10, Math.round(size * 0.58)),
         fontWeight: 600,
         lineHeight: 1,
+        letterSpacing: "-0.01em",
       }}
     >
-      {initial}
+      {showInitial ? initial : null}
     </span>
   );
 }

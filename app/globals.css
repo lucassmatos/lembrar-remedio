@@ -18,13 +18,15 @@
   --color-amber-soft: oklch(0.95 0.06 80);
   --color-clay: oklch(0.62 0.1 35);
   --color-clay-soft: oklch(0.94 0.04 40);
+}
 
-  --color-violet: oklch(0.6 0.11 295);
-  --color-violet-soft: oklch(0.94 0.04 295);
-  --color-sky: oklch(0.66 0.09 230);
-  --color-sky-soft: oklch(0.94 0.04 230);
-  --color-sand: oklch(0.66 0.06 80);
-  --color-sand-soft: oklch(0.94 0.025 80);
+:root {
+  --color-violet: oklch(0.55 0.13 295);
+  --color-violet-soft: oklch(0.93 0.045 295);
+  --color-sky: oklch(0.6 0.1 230);
+  --color-sky-soft: oklch(0.93 0.045 230);
+  --color-sand: oklch(0.6 0.07 80);
+  --color-sand-soft: oklch(0.94 0.035 80);
 }
 
 @media (prefers-color-scheme: dark) {

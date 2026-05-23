@@ -52,7 +52,7 @@ export function MedList({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 font-display text-[20px] leading-tight tracking-tight text-ink">
                     {showProfile && profileById.get(med.profileId) ? (
-                      <ProfileBadge profile={profileById.get(med.profileId)!} size={16} />
+                      <ProfileBadge profile={profileById.get(med.profileId)!} size={20} />
                     ) : null}
                     <span className="min-w-0 truncate">{med.name}</span>
                   </div>

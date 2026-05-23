@@ -65,14 +65,14 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
             + pessoa
           </button>
         ) : (
-          <form onSubmit={create} className="flex items-center gap-2">
+          <form onSubmit={create} className="flex min-w-[12rem] flex-1 items-center gap-2">
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="nome"
               maxLength={40}
-              className="w-28 rounded-full bg-transparent px-3.5 py-1.5 text-[14px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+              className="min-w-0 flex-1 rounded-full bg-transparent px-3.5 py-1.5 text-[14px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
               style={{ border: "1px solid var(--color-edge-2)" }}
             />
             <button
@@ -122,20 +122,18 @@ function Chip({
       onClick={onClick}
       className={
         "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[14px] transition-all " +
-        (active
-          ? "bg-ink text-paper"
-          : "text-ink-soft hover:text-ink")
+        (active ? "text-paper" : "text-ink-soft hover:text-ink")
       }
       style={
         active
-          ? undefined
+          ? { background: color ?? "var(--color-ink)" }
           : { border: "1px solid var(--color-edge-2)" }
       }
     >
-      {color ? (
+      {!active && color ? (
         <span
           className="inline-block size-2 rounded-full"
-          style={{ background: active ? "var(--color-paper)" : color }}
+          style={{ background: color }}
         />
       ) : null}
       {label}
