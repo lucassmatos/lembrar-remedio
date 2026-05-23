@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DayLog, DoseSlot, Medication } from "@/lib/types";
 import { slotKey, todaySlots } from "@/lib/schedule";
-import { loadLog, saveLogEntry } from "@/lib/storage";
+import { loadConfig, loadLog, saveLogEntry } from "@/lib/storage";
 
 type Props = {
   date: string;
@@ -28,7 +28,10 @@ export function TodayList({ date, meds, nowMinutes }: Props) {
     return () => window.removeEventListener("lr:change", refresh as EventListener);
   }, [date]);
 
-  const slots = useMemo(() => todaySlots(meds, log), [meds, log]);
+  const slots = useMemo(
+    () => todaySlots(meds, log, { date, tz: loadConfig().timezone }),
+    [meds, log, date],
+  );
 
   function toggle(slot: DoseSlot) {
     const key = slotKey(slot.medId, slot.time);

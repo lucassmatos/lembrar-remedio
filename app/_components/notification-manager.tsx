@@ -28,7 +28,7 @@ export function NotificationManager() {
         const meds = loadMeds();
         if (meds.length === 0) return;
         const log = loadLog(date);
-        const slots = todaySlots(meds, log);
+        const slots = todaySlots(meds, log, { date, tz: cfg.timezone });
         for (const s of slots) {
           if (s.taken) continue;
           if (s.minutes < minutes - NEAR_AFTER_MIN) continue;

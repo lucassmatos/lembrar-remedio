@@ -25,7 +25,7 @@ export default function Page() {
       const now = nowInTz(cfg.timezone);
       const m = loadMeds();
       const log = loadLog(now.date);
-      const slots = todaySlots(m, log);
+      const slots = todaySlots(m, log, { date: now.date, tz: cfg.timezone });
       setMeds(m);
       setDate(now.date);
       setMinutes(now.minutes);

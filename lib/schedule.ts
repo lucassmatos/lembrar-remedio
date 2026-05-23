@@ -29,17 +29,29 @@ export function generateSlotsForMed(med: Medication): string[] {
   return Array.from(new Set(times)).sort();
 }
 
-export function todaySlots(meds: Medication[], log: DayLog): DoseSlot[] {
+export function todaySlots(
+  meds: Medication[],
+  log: DayLog,
+  today?: { date: string; tz: string },
+): DoseSlot[] {
   const slots: DoseSlot[] = [];
   for (const med of meds) {
+    let minMinutes: number | null = null;
+    if (today) {
+      const created = dateInTz(med.createdAt, today.tz);
+      if (created.date > today.date) continue;
+      if (created.date === today.date) minMinutes = created.minutes;
+    }
     for (const time of generateSlotsForMed(med)) {
+      const minutes = parseTime(time);
+      if (minMinutes !== null && minutes < minMinutes) continue;
       const key = slotKey(med.id, time);
       const entry = log[key];
       slots.push({
         medId: med.id,
         med,
         time,
-        minutes: parseTime(time),
+        minutes,
         taken: !!entry?.taken,
         takenAt: entry?.takenAt,
       });
@@ -48,12 +60,7 @@ export function todaySlots(meds: Medication[], log: DayLog): DoseSlot[] {
   return slots.sort((a, b) => a.minutes - b.minutes);
 }
 
-export function nowInTz(tz: string): {
-  date: string;
-  minutes: number;
-  iso: string;
-} {
-  const now = new Date();
+function dateInTz(timestamp: number, tz: string): { date: string; minutes: number } {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
@@ -64,9 +71,18 @@ export function nowInTz(tz: string): {
     hour12: false,
   });
   const parts = Object.fromEntries(
-    fmt.formatToParts(now).map((p) => [p.type, p.value]),
+    fmt.formatToParts(new Date(timestamp)).map((p) => [p.type, p.value]),
   );
   const date = `${parts.year}-${parts.month}-${parts.day}`;
   const minutes = Number(parts.hour) * 60 + Number(parts.minute);
-  return { date, minutes, iso: now.toISOString() };
+  return { date, minutes };
+}
+
+export function nowInTz(tz: string): {
+  date: string;
+  minutes: number;
+  iso: string;
+} {
+  const { date, minutes } = dateInTz(Date.now(), tz);
+  return { date, minutes, iso: new Date().toISOString() };
 }
