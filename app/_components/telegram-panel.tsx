@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getConfig, setConfig } from "@/lib/api";
 
 type State =
@@ -12,6 +12,8 @@ type State =
 export function TelegramPanel() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [err, setErr] = useState<string | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     let cancelled = false;
@@ -24,27 +26,32 @@ export function TelegramPanel() {
         if (!cancelled) setState({ kind: "unpaired" });
       }
     })();
-    const id = window.setInterval(refresh, 5000);
-    async function refresh() {
-      if (state.kind !== "pairing") return;
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(async () => {
+      if (stateRef.current.kind !== "pairing") return;
       try {
         const cfg = await getConfig();
         if (cfg.chatId) setState({ kind: "paired", chatId: cfg.chatId });
       } catch {
         // ignore
       }
-    }
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [state.kind]);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, []);
 
   async function startPairing() {
     setErr(null);
     try {
       const res = await fetch("/api/telegram/pair", { method: "POST" });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
       const data = (await res.json()) as { url: string; token: string; expiresIn: number };
       setState({
         kind: "pairing",
