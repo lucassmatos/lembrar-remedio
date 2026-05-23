@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Medication } from "@/lib/types";
 import { generateSlotsForMed } from "@/lib/schedule";
-import { loadMeds, saveMeds } from "@/lib/storage";
+import { deleteMed } from "@/lib/api";
 import { MedForm } from "./med-form";
 
 export function MedList({ meds }: { meds: Medication[] }) {
@@ -17,10 +17,9 @@ export function MedList({ meds }: { meds: Medication[] }) {
     );
   }
 
-  function remove(id: string, name: string) {
+  async function remove(id: string, name: string) {
     if (!confirm(`Apagar ${name}?`)) return;
-    const next = loadMeds().filter((m) => m.id !== id);
-    saveMeds(next);
+    await deleteMed(id);
     if (editingId === id) setEditingId(null);
   }
 

@@ -1,21 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { Shell } from "../_components/shell";
+import { getConfig, setConfig as apiSetConfig } from "@/lib/api";
 import {
   DEFAULT_OPENAI_MODEL,
-  loadConfig,
   loadOpenAIKey,
   loadOpenAIModel,
-  saveConfig,
   saveOpenAIKey,
   saveOpenAIModel,
 } from "@/lib/storage";
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
   const [mounted, setMounted] = useState(false);
   const [tz, setTz] = useState("America/Sao_Paulo");
-  const [perm, setPerm] = useState<NotificationPermission | "unsupported">("default");
+  const [tzBusy, setTzBusy] = useState(false);
   const [installState, setInstallState] = useState<"installed" | "browser" | "unknown">("unknown");
   const [openaiKey, setOpenaiKey] = useState("");
   const [openaiModel, setOpenaiModel] = useState(DEFAULT_OPENAI_MODEL);
@@ -23,22 +24,31 @@ export default function SettingsPage() {
   const [advanced, setAdvanced] = useState(false);
 
   useEffect(() => {
-    const cfg = loadConfig();
-    setTz(cfg.timezone);
-    setOpenaiKey(loadOpenAIKey());
-    setOpenaiModel(loadOpenAIModel());
-    if ("Notification" in window) setPerm(Notification.permission);
-    else setPerm("unsupported");
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      // @ts-expect-error - iOS Safari
-      window.navigator.standalone === true;
-    setInstallState(standalone ? "installed" : "browser");
-    setMounted(true);
+    (async () => {
+      try {
+        const cfg = await getConfig();
+        setTz(cfg.timezone);
+      } catch {
+        // ignore
+      }
+      setOpenaiKey(loadOpenAIKey());
+      setOpenaiModel(loadOpenAIModel());
+      const standalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        // @ts-expect-error - iOS Safari
+        window.navigator.standalone === true;
+      setInstallState(standalone ? "installed" : "browser");
+      setMounted(true);
+    })();
   }, []);
 
-  function saveTz() {
-    saveConfig({ ...loadConfig(), timezone: tz });
+  async function saveTz() {
+    setTzBusy(true);
+    try {
+      await apiSetConfig({ timezone: tz });
+    } finally {
+      setTzBusy(false);
+    }
   }
 
   function saveKey() {
@@ -51,19 +61,8 @@ export default function SettingsPage() {
     setOpenaiKey("");
   }
 
-  async function ask() {
-    if (!("Notification" in window)) return;
-    const p = await Notification.requestPermission();
-    setPerm(p);
-  }
-
-  function test() {
-    if (!("Notification" in window) || Notification.permission !== "granted") return;
-    new Notification("Funcionando", { body: "É assim que o lembrete vai chegar.", icon: "/icon.svg" });
-  }
-
-  function clearAll() {
-    if (!confirm("Apaga TODOS os remédios, histórico e configurações?")) return;
+  function clearLocal() {
+    if (!confirm("Apaga a chave da OpenAI deste navegador (não mexe nos remédios salvos)?")) return;
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
       if (k && k.startsWith("lr.")) localStorage.removeItem(k);
@@ -87,36 +86,27 @@ export default function SettingsPage() {
     >
       {!mounted ? null : (
         <div className="space-y-14">
-          <Section label="notificações">
-            <div className="flex items-baseline justify-between">
-              <p className="font-display text-[22px] leading-tight tracking-tight">
-                {perm === "granted" ? (
-                  <span style={{ color: "var(--color-sage)" }}>liberadas</span>
-                ) : perm === "denied" ? (
-                  <span style={{ color: "var(--color-clay)" }}>bloqueadas</span>
-                ) : perm === "unsupported" ? (
-                  <span className="text-ink-soft">não suportadas</span>
-                ) : (
-                  <span className="text-ink">não pedidas</span>
-                )}
+          <Section label="conta">
+            <div className="flex items-baseline justify-between gap-4">
+              <p className="min-w-0 truncate font-display text-[22px] leading-tight tracking-tight text-ink">
+                {session?.user?.email ?? "—"}
               </p>
-              <div className="flex gap-4 text-[13px]">
-                {perm === "default" ? (
-                  <button onClick={ask} className="underline decoration-edge-2 underline-offset-4 hover:text-ink">
-                    pedir permissão
-                  </button>
-                ) : null}
-                {perm === "granted" ? (
-                  <button onClick={test} className="underline decoration-edge-2 underline-offset-4 hover:text-ink">
-                    enviar teste
-                  </button>
-                ) : null}
-              </div>
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-clay"
+              >
+                sair
+              </button>
             </div>
-            <p className="mt-3 text-[13px] leading-relaxed text-ink-faint">
-              O navegador só dispara lembrete enquanto o app estiver aberto na
-              aba ou rodando como PWA instalado. Pra garantir, mantenha o ícone
-              instalado e abra de manhã.
+          </Section>
+
+          <Section label="telegram">
+            <p className="font-display text-[22px] leading-tight tracking-tight text-ink-soft">
+              em breve
+            </p>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-ink-faint">
+              Vamos parear um bot do Telegram pra você receber lembrete mesmo
+              com o celular bloqueado. Volto aqui assim que estiver pronto.
             </p>
           </Section>
 
@@ -157,9 +147,10 @@ export default function SettingsPage() {
               />
               <button
                 onClick={saveTz}
-                className="rounded-full bg-ink px-4 py-2 text-[13px] font-medium text-paper hover:opacity-90"
+                disabled={tzBusy}
+                className="rounded-full bg-ink px-4 py-2 text-[13px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
               >
-                salvar
+                {tzBusy ? "salvando" : "salvar"}
               </button>
             </div>
             <p className="mt-3 text-[13px] text-ink-faint">
@@ -177,7 +168,7 @@ export default function SettingsPage() {
             </p>
             <p className="mt-2 text-[13px] leading-relaxed text-ink-faint">
               Cole sua chave da OpenAI pra ativar a leitura de receita por
-              foto. A chave fica só nesse aparelho e é usada direto contra a
+              foto. A chave fica só neste aparelho e é usada direto contra a
               API da OpenAI.
             </p>
             <div className="mt-4 flex items-end gap-3">
@@ -254,10 +245,10 @@ export default function SettingsPage() {
 
           <Section label="zona de risco">
             <button
-              onClick={clearAll}
+              onClick={clearLocal}
               className="text-[13px] underline decoration-edge-2 underline-offset-4 hover:text-clay"
             >
-              apagar todos os dados
+              limpar dados deste navegador
             </button>
           </Section>
         </div>

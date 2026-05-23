@@ -1,15 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { nanoid } from "nanoid";
-import {
-  loadMeds,
-  loadOpenAIKey,
-  loadOpenAIModel,
-  saveMeds,
-} from "@/lib/storage";
+import { loadOpenAIKey, loadOpenAIModel } from "@/lib/storage";
+import { addMed } from "@/lib/api";
 import { analyzePrescription, fileToDataUrl, type ParsedMed } from "@/lib/openai";
-import type { Medication } from "@/lib/types";
 
 type Status = "idle" | "loading" | "review" | "done" | "error";
 
@@ -103,27 +97,28 @@ export function PrescriptionScan() {
     );
   }
 
-  function confirm() {
+  async function confirm() {
     const chosen = parsed.filter((_, i) => selected[i]);
     if (chosen.length === 0) return;
-    const meds = loadMeds();
-    for (const p of chosen) {
-      const sorted = [...p.times].filter((t) => /^\d{2}:\d{2}$/.test(t)).sort();
-      const times = sorted.length > 0 ? Array.from(new Set(sorted)) : [p.startTime];
-      const med: Medication = {
-        id: nanoid(8),
-        name: p.name,
-        dosage: p.dosage,
-        intervalHours: p.intervalHours,
-        startTime: times[0],
-        times: times.length > 1 ? times : undefined,
-        createdAt: Date.now(),
-      };
-      meds.push(med);
+    setStatus("loading");
+    try {
+      for (const p of chosen) {
+        const sorted = [...p.times].filter((t) => /^\d{2}:\d{2}$/.test(t)).sort();
+        const times = sorted.length > 0 ? Array.from(new Set(sorted)) : [p.startTime];
+        await addMed({
+          name: p.name,
+          dosage: p.dosage,
+          intervalHours: p.intervalHours,
+          startTime: times[0],
+          times: times.length > 1 ? times : undefined,
+        });
+      }
+      setStatus("done");
+      window.setTimeout(reset, 1400);
+    } catch (e) {
+      setStatus("error");
+      setErr(e instanceof Error ? e.message : "Não consegui salvar.");
     }
-    saveMeds(meds);
-    setStatus("done");
-    window.setTimeout(reset, 1400);
   }
 
   function reset() {

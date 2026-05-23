@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { Shell } from "./_components/shell";
 import { TodayList } from "./_components/today-list";
-import { NotificationManager } from "./_components/notification-manager";
-import { PermissionBanner } from "./_components/permission-banner";
-import { loadConfig, loadLog, loadMeds } from "@/lib/storage";
+import { getConfig, getLog, getMeds, onChange } from "@/lib/api";
 import { nowInTz, todaySlots } from "@/lib/schedule";
 import type { Medication } from "@/lib/types";
 
@@ -15,30 +13,38 @@ const MONTH = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 export default function Page() {
   const [mounted, setMounted] = useState(false);
   const [meds, setMeds] = useState<Medication[]>([]);
+  const [tz, setTz] = useState("America/Sao_Paulo");
   const [date, setDate] = useState("2026-01-01");
   const [minutes, setMinutes] = useState(0);
   const [counts, setCounts] = useState({ taken: 0, total: 0 });
 
   useEffect(() => {
-    function refresh() {
-      const cfg = loadConfig();
-      const now = nowInTz(cfg.timezone);
-      const m = loadMeds();
-      const log = loadLog(now.date);
-      const slots = todaySlots(m, log, { date: now.date, tz: cfg.timezone });
-      setMeds(m);
-      setDate(now.date);
-      setMinutes(now.minutes);
-      setCounts({ taken: slots.filter((s) => s.taken).length, total: slots.length });
-      setMounted(true);
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const [cfg, m] = await Promise.all([getConfig(), getMeds()]);
+        const now = nowInTz(cfg.timezone);
+        const log = await getLog(now.date);
+        if (cancelled) return;
+        const slots = todaySlots(m, log, { date: now.date, tz: cfg.timezone });
+        setTz(cfg.timezone);
+        setMeds(m);
+        setDate(now.date);
+        setMinutes(now.minutes);
+        setCounts({ taken: slots.filter((s) => s.taken).length, total: slots.length });
+        setMounted(true);
+      } catch {
+        // requireSession may redirect
+      }
     }
     refresh();
     const id = window.setInterval(refresh, 60_000);
-    window.addEventListener("lr:change", refresh);
+    const off = onChange("any", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
+      cancelled = true;
       window.clearInterval(id);
-      window.removeEventListener("lr:change", refresh);
+      off();
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
@@ -53,10 +59,10 @@ export default function Page() {
       header={
         <section className="mb-10">
           <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">
-            {mounted ? dayWord : " "}
+            {mounted ? dayWord : " "}
           </p>
           <h1 className="mt-1 font-display text-[44px] leading-[1.05] tracking-tight text-ink">
-            {mounted ? dateLine : " "}
+            {mounted ? dateLine : " "}
           </h1>
           {mounted && counts.total > 0 ? (
             <p className="mt-3 text-[14px] tnum text-ink-soft">
@@ -66,9 +72,7 @@ export default function Page() {
         </section>
       }
     >
-      <NotificationManager />
-      <PermissionBanner />
-      {mounted ? <TodayList date={date} meds={meds} nowMinutes={minutes} /> : null}
+      {mounted ? <TodayList date={date} tz={tz} meds={meds} nowMinutes={minutes} /> : null}
     </Shell>
   );
 }

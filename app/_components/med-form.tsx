@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { nanoid } from "nanoid";
-import { loadMeds, saveMeds } from "@/lib/storage";
+import { addMed, updateMed } from "@/lib/api";
 import type { Medication } from "@/lib/types";
 
 const INTERVAL_CHIPS = [4, 6, 8, 12, 24];
@@ -20,52 +19,44 @@ export function MedForm({ med, onSaved, onCancel }: Props) {
   const [intervalHours, setIntervalHours] = useState<number | "">(med?.intervalHours ?? 8);
   const [startTime, setStartTime] = useState(med?.startTime ?? "08:00");
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
     if (!name.trim()) return setErr("Dá um nome pro remédio.");
     if (!intervalHours || Number(intervalHours) <= 0) return setErr("Intervalo precisa ser maior que zero.");
-
-    const meds = loadMeds();
-    let saved: Medication;
-
-    if (editing && med) {
-      const idx = meds.findIndex((m) => m.id === med.id);
-      if (idx < 0) {
-        setErr("Remédio não encontrado.");
-        return;
+    setBusy(true);
+    try {
+      let saved: Medication;
+      if (editing && med) {
+        saved = await updateMed(med.id, {
+          name: name.trim(),
+          dosage: dosage.trim() || undefined,
+          intervalHours: Number(intervalHours),
+          startTime,
+          times: undefined,
+        });
+      } else {
+        saved = await addMed({
+          name: name.trim(),
+          dosage: dosage.trim() || undefined,
+          intervalHours: Number(intervalHours),
+          startTime,
+        });
       }
-      saved = {
-        ...meds[idx],
-        name: name.trim(),
-        dosage: dosage.trim() || undefined,
-        intervalHours: Number(intervalHours),
-        startTime,
-        times: undefined,
-      };
-      meds[idx] = saved;
-    } else {
-      saved = {
-        id: nanoid(8),
-        name: name.trim(),
-        dosage: dosage.trim() || undefined,
-        intervalHours: Number(intervalHours),
-        startTime,
-        createdAt: Date.now(),
-      };
-      meds.push(saved);
+      if (!editing) {
+        setName("");
+        setDosage("");
+        setIntervalHours(8);
+        setStartTime("08:00");
+      }
+      onSaved?.(saved);
+    } catch {
+      setErr("Não rolou. Tenta de novo.");
+    } finally {
+      setBusy(false);
     }
-
-    saveMeds(meds);
-
-    if (!editing) {
-      setName("");
-      setDosage("");
-      setIntervalHours(8);
-      setStartTime("08:00");
-    }
-    onSaved?.(saved);
   }
 
   return (
@@ -156,9 +147,10 @@ export function MedForm({ med, onSaved, onCancel }: Props) {
       <div className="flex items-center gap-4 pt-2">
         <button
           type="submit"
-          className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90"
+          disabled={busy}
+          className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {editing ? "Salvar" : "Adicionar"}
+          {busy ? "Salvando" : editing ? "Salvar" : "Adicionar"}
         </button>
         {editing ? (
           <button

@@ -12,6 +12,9 @@ export type Medication = {
 export type Config = {
   chatId?: number;
   timezone: string;
+  email?: string;
+  name?: string;
+  createdAt?: number;
 };
 
 export type DoseSlot = {

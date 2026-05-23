@@ -3,41 +3,60 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DayLog, DoseSlot, Medication } from "@/lib/types";
 import { slotKey, todaySlots } from "@/lib/schedule";
-import { loadConfig, loadLog, saveLogEntry } from "@/lib/storage";
+import { getLog, onChange, setLogEntry } from "@/lib/api";
 
 type Props = {
   date: string;
+  tz: string;
   meds: Medication[];
   nowMinutes: number;
 };
 
 const NEAR_WINDOW = 30;
 
-export function TodayList({ date, meds, nowMinutes }: Props) {
+export function TodayList({ date, tz, meds, nowMinutes }: Props) {
   const [log, setLog] = useState<DayLog>({});
 
   useEffect(() => {
-    setLog(loadLog(date));
-    function refresh(e: Event) {
-      const detail = (e as CustomEvent<{ key: string }>).detail;
-      if (!detail || detail.key.includes(`log.${date}`)) {
-        setLog(loadLog(date));
+    let cancelled = false;
+    async function fetchLog() {
+      try {
+        const next = await getLog(date);
+        if (!cancelled) setLog(next);
+      } catch {
+        // ignore
       }
     }
-    window.addEventListener("lr:change", refresh as EventListener);
-    return () => window.removeEventListener("lr:change", refresh as EventListener);
+    fetchLog();
+    const off = onChange("log", fetchLog);
+    return () => {
+      cancelled = true;
+      off();
+    };
   }, [date]);
 
   const slots = useMemo(
-    () => todaySlots(meds, log, { date, tz: loadConfig().timezone }),
-    [meds, log, date],
+    () => todaySlots(meds, log, { date, tz }),
+    [meds, log, date, tz],
   );
 
-  function toggle(slot: DoseSlot) {
+  async function toggle(slot: DoseSlot) {
     const key = slotKey(slot.medId, slot.time);
     const next = !slot.taken;
-    const updated = saveLogEntry(date, key, next);
-    setLog(updated);
+    setLog((prev) => {
+      const copy = { ...prev };
+      if (next) copy[key] = { taken: true, takenAt: Date.now() };
+      else delete copy[key];
+      return copy;
+    });
+    try {
+      const updated = await setLogEntry(date, key, next);
+      setLog(updated);
+    } catch {
+      // revert
+      const fresh = await getLog(date).catch(() => ({}));
+      setLog(fresh);
+    }
   }
 
   if (slots.length === 0) {
