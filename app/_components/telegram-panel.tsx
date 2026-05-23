@@ -46,14 +46,18 @@ export function TelegramPanel() {
         // ignore
       }
     }
-    const id = window.setInterval(poll, 3000);
-    function onVisible() {
+    const id = window.setInterval(poll, 2000);
+    function onWake() {
       if (document.visibilityState === "visible") poll();
     }
-    document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    window.addEventListener("pageshow", onWake);
     return () => {
       window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
+      window.removeEventListener("pageshow", onWake);
     };
   }, []);
 
