@@ -1,4 +1,4 @@
-const CACHE = "lr-shell-v1";
+const CACHE = "lr-shell-v3";
 const SHELL = ["/", "/medications", "/settings", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
