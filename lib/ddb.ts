@@ -12,15 +12,15 @@ import type { Config, DayLog, Medication, Profile, ProfileColor } from "./types"
 import { PROFILE_COLORS } from "./types";
 
 const TABLE = process.env.DDB_TABLE_NAME || "lembrar-remedio";
-const REGION = process.env.AWS_REGION || "us-east-1";
+const REGION = process.env.LR_AWS_REGION || process.env.AWS_REGION || "us-east-1";
+
+const accessKey = process.env.LR_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
+const secretKey = process.env.LR_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
 
 const raw = new DynamoDBClient({
   region: REGION,
-  credentials: process.env.AWS_ACCESS_KEY_ID
-    ? {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-      }
+  credentials: accessKey && secretKey
+    ? { accessKeyId: accessKey, secretAccessKey: secretKey }
     : undefined,
 });
 const doc = DynamoDBDocumentClient.from(raw, {
