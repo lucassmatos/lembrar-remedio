@@ -21,7 +21,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  @theme {
+  :root {
     --color-paper: oklch(0.165 0.008 55);
     --color-paper-2: oklch(0.205 0.01 55);
     --color-edge: oklch(0.28 0.012 55);
