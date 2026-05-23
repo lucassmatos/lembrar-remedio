@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Shell } from "../_components/shell";
+import { TelegramPanel } from "../_components/telegram-panel";
 import { getConfig, setConfig as apiSetConfig } from "@/lib/api";
 import {
   DEFAULT_OPENAI_MODEL,
@@ -101,13 +102,7 @@ export default function SettingsPage() {
           </Section>
 
           <Section label="telegram">
-            <p className="font-display text-[22px] leading-tight tracking-tight text-ink-soft">
-              em breve
-            </p>
-            <p className="mt-2 text-[13.5px] leading-relaxed text-ink-faint">
-              Vamos parear um bot do Telegram pra você receber lembrete mesmo
-              com o celular bloqueado. Volto aqui assim que estiver pronto.
-            </p>
+            <TelegramPanel />
           </Section>
 
           <Section label="instalar como app">
