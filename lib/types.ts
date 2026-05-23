@@ -4,6 +4,7 @@ export type Medication = {
   dosage?: string;
   intervalHours: number;
   startTime: string;
+  times?: string[];
   durationMinutes?: number;
   createdAt: number;
 };

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Shell } from "../_components/shell";
 import { MedForm } from "../_components/med-form";
 import { MedList } from "../_components/med-list";
+import { PrescriptionScan } from "../_components/prescription-scan";
 import { loadMeds } from "@/lib/storage";
 import type { Medication } from "@/lib/types";
 
@@ -35,6 +36,8 @@ export default function MedicationsPage() {
         </section>
       }
     >
+      {mounted ? <PrescriptionScan /> : null}
+
       <section className="mb-14">
         <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
           Novo remédio

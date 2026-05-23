@@ -6,9 +6,13 @@ import type { Config, DayLog, Medication } from "./types";
 const KEY = {
   meds: "lr.meds.v1",
   config: "lr.config.v1",
+  openai: "lr.openai.v1",
+  openaiModel: "lr.openai.model.v1",
   log: (date: string) => `lr.log.${date}`,
   notified: (date: string) => `lr.notified.${date}`,
 };
+
+export const DEFAULT_OPENAI_MODEL = "gpt-5.4";
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -43,6 +47,37 @@ export function loadConfig(): Config {
 
 export function saveConfig(cfg: Config): void {
   write(KEY.config, cfg);
+}
+
+export function loadOpenAIKey(): string {
+  return read<string>(KEY.openai, "");
+}
+
+export function saveOpenAIKey(key: string): void {
+  if (typeof window === "undefined") return;
+  const trimmed = key.trim();
+  if (!trimmed) {
+    localStorage.removeItem(KEY.openai);
+    window.dispatchEvent(new CustomEvent("lr:change", { detail: { key: KEY.openai } }));
+    return;
+  }
+  write(KEY.openai, trimmed);
+}
+
+export function loadOpenAIModel(): string {
+  const stored = read<string>(KEY.openaiModel, "");
+  return stored.trim() || DEFAULT_OPENAI_MODEL;
+}
+
+export function saveOpenAIModel(model: string): void {
+  if (typeof window === "undefined") return;
+  const trimmed = model.trim();
+  if (!trimmed || trimmed === DEFAULT_OPENAI_MODEL) {
+    localStorage.removeItem(KEY.openaiModel);
+    window.dispatchEvent(new CustomEvent("lr:change", { detail: { key: KEY.openaiModel } }));
+    return;
+  }
+  write(KEY.openaiModel, trimmed);
 }
 
 export function loadLog(date: string): DayLog {

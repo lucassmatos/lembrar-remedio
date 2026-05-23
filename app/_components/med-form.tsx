@@ -42,6 +42,7 @@ export function MedForm({ med, onSaved, onCancel }: Props) {
         dosage: dosage.trim() || undefined,
         intervalHours: Number(intervalHours),
         startTime,
+        times: undefined,
       };
       meds[idx] = saved;
     } else {

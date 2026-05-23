@@ -15,6 +15,10 @@ export function slotKey(medId: string, time: string): string {
 }
 
 export function generateSlotsForMed(med: Medication): string[] {
+  if (med.times && med.times.length > 0) {
+    const valid = med.times.filter((t) => /^\d{2}:\d{2}$/.test(t));
+    return Array.from(new Set(valid)).sort();
+  }
   const start = parseTime(med.startTime);
   const interval = Math.max(1, Math.round(med.intervalHours * 60));
   const times: string[] = [];

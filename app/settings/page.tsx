@@ -2,17 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { Shell } from "../_components/shell";
-import { loadConfig, saveConfig } from "@/lib/storage";
+import {
+  DEFAULT_OPENAI_MODEL,
+  loadConfig,
+  loadOpenAIKey,
+  loadOpenAIModel,
+  saveConfig,
+  saveOpenAIKey,
+  saveOpenAIModel,
+} from "@/lib/storage";
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [tz, setTz] = useState("America/Sao_Paulo");
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">("default");
   const [installState, setInstallState] = useState<"installed" | "browser" | "unknown">("unknown");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [openaiModel, setOpenaiModel] = useState(DEFAULT_OPENAI_MODEL);
+  const [showKey, setShowKey] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
 
   useEffect(() => {
     const cfg = loadConfig();
     setTz(cfg.timezone);
+    setOpenaiKey(loadOpenAIKey());
+    setOpenaiModel(loadOpenAIModel());
     if ("Notification" in window) setPerm(Notification.permission);
     else setPerm("unsupported");
     const standalone =
@@ -25,6 +39,16 @@ export default function SettingsPage() {
 
   function saveTz() {
     saveConfig({ ...loadConfig(), timezone: tz });
+  }
+
+  function saveKey() {
+    saveOpenAIKey(openaiKey);
+    saveOpenAIModel(openaiModel);
+  }
+
+  function clearKey() {
+    saveOpenAIKey("");
+    setOpenaiKey("");
   }
 
   async function ask() {
@@ -141,6 +165,91 @@ export default function SettingsPage() {
             <p className="mt-3 text-[13px] text-ink-faint">
               detectado: <span className="tnum">{Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
             </p>
+          </Section>
+
+          <Section label="openai (opcional)">
+            <p className="font-display text-[22px] leading-tight tracking-tight text-ink">
+              {openaiKey ? (
+                <span style={{ color: "var(--color-sage)" }}>chave salva</span>
+              ) : (
+                "escanear receita com IA"
+              )}
+            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-faint">
+              Cole sua chave da OpenAI pra ativar a leitura de receita por
+              foto. A chave fica só nesse aparelho e é usada direto contra a
+              API da OpenAI.
+            </p>
+            <div className="mt-4 flex items-end gap-3">
+              <input
+                type={showKey ? "text" : "password"}
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+                placeholder="sk-..."
+                spellCheck={false}
+                autoComplete="off"
+                className="flex-1 bg-transparent pb-2 text-[16px] tnum text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+                style={{ borderBottom: "1px solid var(--color-edge-2)" }}
+              />
+              <button
+                onClick={saveKey}
+                className="rounded-full bg-ink px-4 py-2 text-[13px] font-medium text-paper hover:opacity-90"
+              >
+                salvar
+              </button>
+            </div>
+            <div className="mt-3 flex items-center gap-5 text-[13px]">
+              <button
+                type="button"
+                onClick={() => setShowKey((v) => !v)}
+                className="text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+              >
+                {showKey ? "ocultar" : "mostrar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdvanced((v) => !v)}
+                className="text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+              >
+                {advanced ? "ocultar avançado" : "avançado"}
+              </button>
+              {openaiKey ? (
+                <button
+                  onClick={clearKey}
+                  className="ml-auto text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-clay"
+                >
+                  remover chave
+                </button>
+              ) : null}
+            </div>
+            {advanced ? (
+              <div className="mt-5 enter">
+                <span className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-ink-faint">
+                  Modelo
+                </span>
+                <div className="flex items-end gap-3">
+                  <input
+                    value={openaiModel}
+                    onChange={(e) => setOpenaiModel(e.target.value)}
+                    placeholder={DEFAULT_OPENAI_MODEL}
+                    spellCheck={false}
+                    autoComplete="off"
+                    className="flex-1 bg-transparent pb-2 text-[16px] tnum text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+                    style={{ borderBottom: "1px solid var(--color-edge-2)" }}
+                  />
+                  <button
+                    onClick={() => saveOpenAIModel(openaiModel)}
+                    className="rounded-full bg-ink px-4 py-2 text-[13px] font-medium text-paper hover:opacity-90"
+                  >
+                    salvar
+                  </button>
+                </div>
+                <p className="mt-2 text-[12px] text-ink-faint">
+                  padrão: <span className="tnum">{DEFAULT_OPENAI_MODEL}</span> — precisa
+                  ser um modelo da OpenAI com visão.
+                </p>
+              </div>
+            ) : null}
           </Section>
 
           <Section label="zona de risco">
