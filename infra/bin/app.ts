@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
 import { DataStack } from "../lib/data-stack";
-import { CronStack } from "../lib/cron-stack";
+import { ComputeStack } from "../lib/compute-stack";
 
 const app = new cdk.App();
 
@@ -10,23 +10,20 @@ const env = {
   region: process.env.CDK_DEFAULT_REGION ?? "us-east-1",
 };
 
-new DataStack(app, "LembrarRemedioData", {
+const data = new DataStack(app, "LembrarRemedioData", {
   env,
   tableName: "lembrar-remedio",
   vercelIamUserName: "lembrar-remedio-vercel",
 });
 
-const cronUrl = process.env.CRON_URL || app.node.tryGetContext("cronUrl");
-const appSecret = process.env.APP_SECRET || app.node.tryGetContext("appSecret");
-const rateMinutes = Number(
-  process.env.CRON_RATE_MIN || app.node.tryGetContext("rateMinutes") || 1,
-);
+const telegramBotToken =
+  process.env.TELEGRAM_BOT_TOKEN || app.node.tryGetContext("telegramBotToken");
 
-if (cronUrl && appSecret) {
-  new CronStack(app, "LembrarRemedioCron", {
+if (telegramBotToken) {
+  new ComputeStack(app, "LembrarRemedioCompute", {
     env,
-    cronUrl,
-    appSecret,
-    rateMinutes,
+    table: data.table,
+    telegramBotToken,
   });
 }
+

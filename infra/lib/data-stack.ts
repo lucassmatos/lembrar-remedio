@@ -25,6 +25,7 @@ export class DataStack extends cdk.Stack {
       pointInTimeRecoverySpecification: {
         pointInTimeRecoveryEnabled: true,
       },
+      stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     const vercelUser = new iam.User(this, "VercelUser", {

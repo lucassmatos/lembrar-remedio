@@ -20,7 +20,12 @@
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1053.0",
+    "@aws-sdk/client-scheduler": "^3.1053.0",
+    "@aws-sdk/lib-dynamodb": "^3.1053.0",
+    "@types/aws-lambda": "^8.10.161",
     "aws-cdk-lib": "^2.180.0",
-    "constructs": "^10.4.2"
+    "constructs": "^10.4.2",
+    "esbuild": "^0.28.0"
   }
 }
