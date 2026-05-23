@@ -5,12 +5,9 @@ import { getConfig, setConfig } from "@/lib/api";
 
 type Mode = "loading" | "unpaired" | "pairing" | "paired";
 
-type PairInfo = { url: string; token: string };
-
 export function TelegramPanel() {
   const [mode, setMode] = useState<Mode>("loading");
   const [chatId, setChatId] = useState<number | null>(null);
-  const [pair, setPair] = useState<PairInfo | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const modeRef = useRef<Mode>(mode);
   modeRef.current = mode;
@@ -37,52 +34,34 @@ export function TelegramPanel() {
   }, []);
 
   useEffect(() => {
-    const id = window.setInterval(async () => {
+    async function poll() {
       if (modeRef.current !== "pairing") return;
       try {
         const cfg = await getConfig();
         if (cfg.chatId) {
           setChatId(cfg.chatId);
           setMode("paired");
-          setPair(null);
         }
       } catch {
         // ignore
       }
-    }, 4000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  async function startPairing() {
-    setErr(null);
-    // Abre a aba SÍNCRONO, dentro do gesto do click. Senão popup blocker mata.
-    const opened = window.open("about:blank", "_blank");
-    try {
-      const res = await fetch("/api/telegram/pair", { method: "POST" });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-      const data = (await res.json()) as { url: string; token: string; expiresIn: number };
-      if (opened && !opened.closed) {
-        opened.location.href = data.url;
-      } else {
-        window.location.href = data.url;
-      }
-      setPair({ url: data.url, token: data.token });
-      setMode("pairing");
-    } catch (e) {
-      if (opened && !opened.closed) opened.close();
-      setErr(e instanceof Error ? e.message : "não consegui gerar o link");
     }
-  }
+    const id = window.setInterval(poll, 3000);
+    function onVisible() {
+      if (document.visibilityState === "visible") poll();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   async function disconnect() {
     if (!confirm("Desconectar o Telegram?")) return;
     try {
       await setConfig({ chatId: undefined });
       setChatId(null);
-      setPair(null);
       setMode("unpaired");
     } catch {
       setErr("erro ao desconectar");
@@ -117,7 +96,7 @@ export function TelegramPanel() {
     );
   }
 
-  if (mode === "pairing" && pair) {
+  if (mode === "pairing") {
     return (
       <div>
         <p className="font-display text-[22px] leading-tight tracking-tight text-ink">
@@ -128,12 +107,12 @@ export function TelegramPanel() {
           esperando o Telegram
         </p>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
-          Toque em <b>Start</b> na conversa que abriu. Em alguns segundos essa
+          Toque em <b>Start</b> na conversa que abriu. Quando voltar aqui, a
           página atualiza sozinha.
         </p>
         <div className="mt-4 flex items-center gap-4 text-[13px]">
           <a
-            href={pair.url}
+            href="/api/telegram/pair-redirect"
             target="_blank"
             rel="noreferrer"
             className="text-ink-soft underline decoration-edge-2 underline-offset-4 hover:text-ink"
@@ -142,10 +121,7 @@ export function TelegramPanel() {
           </a>
           <button
             type="button"
-            onClick={() => {
-              setPair(null);
-              setMode("unpaired");
-            }}
+            onClick={() => setMode("unpaired")}
             className="text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
           >
             cancelar
@@ -167,15 +143,17 @@ export function TelegramPanel() {
       </p>
       <p className="mt-2 text-[13.5px] leading-relaxed text-ink-faint">
         Sem Telegram, eu não consigo te avisar com o app fechado. Conectar
-        leva 10 segundos: clica abaixo, abre o link no Telegram, toca em Start.
+        leva 10 segundos: toca abaixo, abre no Telegram, toca em Start.
       </p>
-      <button
-        type="button"
-        onClick={startPairing}
-        className="mt-4 rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90"
+      <a
+        href="/api/telegram/pair-redirect"
+        target="_blank"
+        rel="noreferrer"
+        onClick={() => setMode("pairing")}
+        className="mt-4 inline-block rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90"
       >
         Conectar Telegram
-      </button>
+      </a>
       {err ? (
         <p className="mt-3 text-[13px]" style={{ color: "var(--color-clay)" }}>
           {err}
