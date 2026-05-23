@@ -5,6 +5,7 @@ const PUBLIC_PATHS = [
   "/login",
   "/api/auth",
   "/api/telegram/webhook",
+  "/api/telegram/setup",
   "/api/cron",
   "/manifest.webmanifest",
   "/icon.svg",
