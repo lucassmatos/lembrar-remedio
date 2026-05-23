@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
-import { listMeds, putMed } from "@/lib/ddb";
+import { ensureDefaultProfile, listMeds, listProfiles, putMed } from "@/lib/ddb";
 import { requireSession } from "@/lib/session";
 import type { Medication } from "@/lib/types";
 
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
   if (!body.name || !body.intervalHours || !body.startTime) {
     return NextResponse.json({ error: "name, intervalHours, startTime obrigatórios" }, { status: 400 });
   }
+  const profileId = await resolveProfileId(s.sub, body.profileId);
   const med: Medication = {
     id: nanoid(8),
     name: body.name.trim(),
@@ -29,8 +30,19 @@ export async function POST(req: NextRequest) {
     startTime: body.startTime,
     times: body.times,
     durationMinutes: body.durationMinutes,
+    profileId,
     createdAt: Date.now(),
   };
   await putMed(s.sub, med);
   return NextResponse.json({ med });
+}
+
+async function resolveProfileId(sub: string, requested?: string): Promise<string> {
+  if (requested) {
+    const profiles = await listProfiles(sub);
+    const match = profiles.find((p) => p.id === requested);
+    if (match) return match.id;
+  }
+  const def = await ensureDefaultProfile(sub);
+  return def.id;
 }

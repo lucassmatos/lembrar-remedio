@@ -1,37 +1,67 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Shell } from "../_components/shell";
 import { MedForm } from "../_components/med-form";
 import { MedList } from "../_components/med-list";
 import { PrescriptionScan } from "../_components/prescription-scan";
-import { getMeds, onChange } from "@/lib/api";
-import type { Medication } from "@/lib/types";
+import { ProfileBar } from "../_components/profile-bar";
+import { getMeds, getProfiles, onChange } from "@/lib/api";
+import type { Medication, Profile } from "@/lib/types";
+
+const SELECTED_KEY = "lr.profile.selected.v1";
 
 export default function MedicationsPage() {
   const [meds, setMeds] = useState<Medication[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [selected, setSelected] = useState<string>("");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function refresh() {
       try {
-        const next = await getMeds();
-        if (!cancelled) {
-          setMeds(next);
-          setMounted(true);
-        }
+        const [m, p] = await Promise.all([getMeds(), getProfiles()]);
+        if (cancelled) return;
+        setMeds(m);
+        setProfiles(p);
+        setSelected((cur) => {
+          if (cur && p.some((x) => x.id === cur)) return cur;
+          const stored = typeof window !== "undefined" ? localStorage.getItem(SELECTED_KEY) : null;
+          if (stored && p.some((x) => x.id === stored)) return stored;
+          const def = p.find((x) => x.isDefault) ?? p[0];
+          return def?.id ?? "";
+        });
+        setMounted(true);
       } catch {
         // ignore (middleware redirects)
       }
     }
     refresh();
-    const off = onChange("meds", refresh);
+    const off1 = onChange("meds", refresh);
+    const off2 = onChange("profiles", refresh);
     return () => {
       cancelled = true;
-      off();
+      off1();
+      off2();
     };
   }, []);
+
+  function chooseProfile(id: string | "all") {
+    const value = id === "all" ? "" : id;
+    setSelected(value);
+    if (typeof window !== "undefined") {
+      if (value) localStorage.setItem(SELECTED_KEY, value);
+      else localStorage.removeItem(SELECTED_KEY);
+    }
+  }
+
+  const visibleMeds = useMemo(
+    () => (selected ? meds.filter((m) => m.profileId === selected) : meds),
+    [meds, selected],
+  );
+
+  const activeProfile = profiles.find((p) => p.id === selected);
 
   return (
     <Shell
@@ -47,21 +77,29 @@ export default function MedicationsPage() {
         </section>
       }
     >
-      {mounted ? <PrescriptionScan /> : null}
+      {mounted ? (
+        <ProfileBar
+          profiles={profiles}
+          selected={selected || "all"}
+          onSelect={chooseProfile}
+        />
+      ) : null}
+
+      {mounted ? <PrescriptionScan profileId={selected} /> : null}
 
       <section className="mb-14">
         <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
-          Novo remédio
+          {activeProfile ? `Novo remédio · ${activeProfile.name}` : "Novo remédio"}
         </h2>
-        <MedForm />
+        <MedForm profileId={selected} />
       </section>
 
       {mounted ? (
         <section>
           <h2 className="mb-2 font-display text-[18px] tracking-tight text-ink-soft">
-            {meds.length > 0 ? "Cadastrados" : ""}
+            {visibleMeds.length > 0 ? "Cadastrados" : ""}
           </h2>
-          <MedList meds={meds} />
+          <MedList meds={visibleMeds} profiles={profiles} />
         </section>
       ) : null}
     </Shell>

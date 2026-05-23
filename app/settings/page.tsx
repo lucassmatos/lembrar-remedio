@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Shell } from "../_components/shell";
 import { TelegramPanel } from "../_components/telegram-panel";
+import { ProfilesPanel } from "../_components/profiles-panel";
 import { getConfig, setConfig as apiSetConfig } from "@/lib/api";
 import {
   DEFAULT_OPENAI_MODEL,
@@ -99,6 +100,10 @@ export default function SettingsPage() {
                 sair
               </button>
             </div>
+          </Section>
+
+          <Section label="pessoas">
+            <ProfilesPanel />
           </Section>
 
           <Section label="telegram">

@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { Shell } from "./_components/shell";
 import { TodayList } from "./_components/today-list";
-import { getConfig, getLog, getMeds, onChange } from "@/lib/api";
+import { getConfig, getLog, getMeds, getProfiles, onChange } from "@/lib/api";
 import { nowInTz, todaySlots } from "@/lib/schedule";
-import type { Medication } from "@/lib/types";
+import type { Medication, Profile } from "@/lib/types";
 
 const WEEKDAY = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 const MONTH = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -13,6 +13,7 @@ const MONTH = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 export default function Page() {
   const [mounted, setMounted] = useState(false);
   const [meds, setMeds] = useState<Medication[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [tz, setTz] = useState("America/Sao_Paulo");
   const [date, setDate] = useState("2026-01-01");
   const [minutes, setMinutes] = useState(0);
@@ -22,13 +23,14 @@ export default function Page() {
     let cancelled = false;
     async function refresh() {
       try {
-        const [cfg, m] = await Promise.all([getConfig(), getMeds()]);
+        const [cfg, m, p] = await Promise.all([getConfig(), getMeds(), getProfiles()]);
         const now = nowInTz(cfg.timezone);
         const log = await getLog(now.date);
         if (cancelled) return;
         const slots = todaySlots(m, log, { date: now.date, tz: cfg.timezone });
         setTz(cfg.timezone);
         setMeds(m);
+        setProfiles(p);
         setDate(now.date);
         setMinutes(now.minutes);
         setCounts({ taken: slots.filter((s) => s.taken).length, total: slots.length });
@@ -72,7 +74,15 @@ export default function Page() {
         </section>
       }
     >
-      {mounted ? <TodayList date={date} tz={tz} meds={meds} nowMinutes={minutes} /> : null}
+      {mounted ? (
+        <TodayList
+          date={date}
+          tz={tz}
+          meds={meds}
+          profiles={profiles}
+          nowMinutes={minutes}
+        />
+      ) : null}
     </Shell>
   );
 }

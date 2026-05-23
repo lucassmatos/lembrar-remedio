@@ -8,11 +8,12 @@ const INTERVAL_CHIPS = [4, 6, 8, 12, 24];
 
 type Props = {
   med?: Medication;
+  profileId?: string;
   onSaved?: (m: Medication) => void;
   onCancel?: () => void;
 };
 
-export function MedForm({ med, onSaved, onCancel }: Props) {
+export function MedForm({ med, profileId, onSaved, onCancel }: Props) {
   const editing = !!med;
   const [name, setName] = useState(med?.name ?? "");
   const [dosage, setDosage] = useState(med?.dosage ?? "");
@@ -43,6 +44,7 @@ export function MedForm({ med, onSaved, onCancel }: Props) {
           dosage: dosage.trim() || undefined,
           intervalHours: Number(intervalHours),
           startTime,
+          profileId: profileId ?? "",
         });
       }
       if (!editing) {

@@ -1,20 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { DayLog, DoseSlot, Medication } from "@/lib/types";
+import type { DayLog, DoseSlot, Medication, Profile } from "@/lib/types";
 import { slotKey, todaySlots } from "@/lib/schedule";
 import { getLog, onChange, setLogEntry } from "@/lib/api";
+import { ProfileBadge } from "./profile-badge";
 
 type Props = {
   date: string;
   tz: string;
   meds: Medication[];
+  profiles?: Profile[];
   nowMinutes: number;
 };
 
 const NEAR_WINDOW = 30;
 
-export function TodayList({ date, tz, meds, nowMinutes }: Props) {
+export function TodayList({ date, tz, meds, profiles = [], nowMinutes }: Props) {
+  const profileById = useMemo(
+    () => new Map(profiles.map((p) => [p.id, p])),
+    [profiles],
+  );
+  const showProfile = profiles.length >= 2;
   const [log, setLog] = useState<DayLog>({});
 
   useEffect(() => {
@@ -82,6 +89,7 @@ export function TodayList({ date, tz, meds, nowMinutes }: Props) {
         <DoseRow
           key={slotKey(slot.medId, slot.time) + "-" + i}
           slot={slot}
+          profile={showProfile ? profileById.get(slot.med.profileId) : undefined}
           nowMinutes={nowMinutes}
           onToggle={() => toggle(slot)}
         />
@@ -92,10 +100,12 @@ export function TodayList({ date, tz, meds, nowMinutes }: Props) {
 
 function DoseRow({
   slot,
+  profile,
   nowMinutes,
   onToggle,
 }: {
   slot: DoseSlot;
+  profile?: Profile;
   nowMinutes: number;
   onToggle: () => void;
 }) {
@@ -115,11 +125,12 @@ function DoseRow({
         <div className="min-w-0">
           <div
             className={
-              "font-display text-[19px] leading-tight tracking-tight transition-all " +
+              "flex items-center gap-2 font-display text-[19px] leading-tight tracking-tight transition-all " +
               (slot.taken ? "text-ink-faint line-through decoration-edge-2" : "text-ink")
             }
           >
-            {slot.med.name}
+            {profile ? <ProfileBadge profile={profile} size={16} /> : null}
+            <span className="min-w-0 truncate">{slot.med.name}</span>
           </div>
           <div className="mt-1 text-[13px] tnum text-ink-faint">
             {slot.med.dosage ? slot.med.dosage : `a cada ${slot.med.intervalHours}h`}

@@ -1,10 +1,11 @@
 "use client";
 
-import type { Config, DayLog, Medication } from "./types";
+import type { Config, DayLog, Medication, Profile } from "./types";
 
 const EVT = "lr:change";
+type Scope = "meds" | "config" | "log" | "profiles";
 
-function emit(scope: "meds" | "config" | "log") {
+function emit(scope: Scope) {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(EVT, { detail: { key: scope } }));
   }
@@ -86,7 +87,42 @@ export async function setLogEntry(
   return data.log;
 }
 
-export function onChange(scope: "meds" | "config" | "log" | "any", handler: () => void): () => void {
+export async function getProfiles(): Promise<Profile[]> {
+  const data = await jsonFetch<{ profiles: Profile[] }>("/api/profiles");
+  return data.profiles;
+}
+
+export async function addProfile(name: string, color?: string): Promise<Profile> {
+  const data = await jsonFetch<{ profile: Profile }>("/api/profiles", {
+    method: "POST",
+    body: JSON.stringify({ name, color }),
+  });
+  emit("profiles");
+  return data.profile;
+}
+
+export async function updateProfile(
+  id: string,
+  patch: { name?: string; color?: string },
+): Promise<Profile> {
+  const data = await jsonFetch<{ profile: Profile }>(`/api/profiles/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  emit("profiles");
+  return data.profile;
+}
+
+export async function deleteProfile(id: string): Promise<void> {
+  await jsonFetch(`/api/profiles/${id}`, { method: "DELETE" });
+  emit("profiles");
+  emit("meds");
+}
+
+export function onChange(
+  scope: Scope | "any",
+  handler: () => void,
+): () => void {
   if (typeof window === "undefined") return () => {};
   function listener(e: Event) {
     const detail = (e as CustomEvent<{ key: string }>).detail;

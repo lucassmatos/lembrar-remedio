@@ -1,13 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import type { Medication } from "@/lib/types";
+import type { Medication, Profile } from "@/lib/types";
 import { generateSlotsForMed } from "@/lib/schedule";
 import { deleteMed } from "@/lib/api";
 import { MedForm } from "./med-form";
+import { ProfileBadge } from "./profile-badge";
 
-export function MedList({ meds }: { meds: Medication[] }) {
+export function MedList({
+  meds,
+  profiles = [],
+}: {
+  meds: Medication[];
+  profiles?: Profile[];
+}) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const showProfile = profiles.length >= 2;
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
 
   if (meds.length === 0) {
     return (
@@ -41,8 +50,11 @@ export function MedList({ meds }: { meds: Medication[] }) {
             ) : (
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <div className="font-display text-[20px] leading-tight tracking-tight text-ink">
-                    {med.name}
+                  <div className="flex items-center gap-2 font-display text-[20px] leading-tight tracking-tight text-ink">
+                    {showProfile && profileById.get(med.profileId) ? (
+                      <ProfileBadge profile={profileById.get(med.profileId)!} size={16} />
+                    ) : null}
+                    <span className="min-w-0 truncate">{med.name}</span>
                   </div>
                   <div className="mt-1 text-[13px] text-ink-soft">
                     {med.dosage ? `${med.dosage} · ` : ""}

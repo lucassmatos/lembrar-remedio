@@ -4,6 +4,7 @@ import {
   getLog,
   listAllUsers,
   listMeds,
+  listProfiles,
   markNotified,
   wasNotified,
 } from "@/lib/ddb";
@@ -62,10 +63,12 @@ async function notifyUser(sub: string): Promise<string[]> {
   const cfg = await getConfig(sub);
   if (!cfg.chatId) return [];
   const { date, minutes } = nowInTz(cfg.timezone);
-  const meds = await listMeds(sub);
+  const [meds, profiles] = await Promise.all([listMeds(sub), listProfiles(sub)]);
   if (meds.length === 0) return [];
   const log = await getLog(sub, date);
   const slots = todaySlots(meds, log, { date, tz: cfg.timezone });
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
+  const showProfile = profiles.length >= 2;
 
   const sent: string[] = [];
   for (const s of slots) {
@@ -76,10 +79,14 @@ async function notifyUser(sub: string): Promise<string[]> {
     if (await wasNotified(sub, date, key)) continue;
 
     const dosage = s.med.dosage ? ` — ${escapeHtml(s.med.dosage)}` : "";
+    const profile = showProfile ? profileById.get(s.med.profileId) : null;
+    const heading = profile
+      ? `<b>Hora do remédio · ${escapeHtml(profile.name)}</b>`
+      : `<b>Hora do remédio</b>`;
     await sendMessage({
       chatId: cfg.chatId,
       text:
-        `<b>Hora do remédio</b>\n` +
+        `${heading}\n` +
         `${escapeHtml(s.med.name)}${dosage}\n` +
         `<code>${s.time}</code>`,
       buttons: [

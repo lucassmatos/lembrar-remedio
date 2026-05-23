@@ -18,6 +18,13 @@
   --color-amber-soft: oklch(0.95 0.06 80);
   --color-clay: oklch(0.62 0.1 35);
   --color-clay-soft: oklch(0.94 0.04 40);
+
+  --color-violet: oklch(0.6 0.11 295);
+  --color-violet-soft: oklch(0.94 0.04 295);
+  --color-sky: oklch(0.66 0.09 230);
+  --color-sky-soft: oklch(0.94 0.04 230);
+  --color-sand: oklch(0.66 0.06 80);
+  --color-sand-soft: oklch(0.94 0.025 80);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,6 +43,13 @@
     --color-amber-soft: oklch(0.3 0.05 70);
     --color-clay: oklch(0.74 0.12 35);
     --color-clay-soft: oklch(0.3 0.05 35);
+
+    --color-violet: oklch(0.78 0.1 295);
+    --color-violet-soft: oklch(0.3 0.045 295);
+    --color-sky: oklch(0.78 0.085 230);
+    --color-sky-soft: oklch(0.3 0.04 230);
+    --color-sand: oklch(0.78 0.06 80);
+    --color-sand-soft: oklch(0.3 0.03 80);
   }
 }
 

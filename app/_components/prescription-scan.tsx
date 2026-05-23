@@ -7,7 +7,7 @@ import { analyzePrescription, fileToDataUrl, type ParsedMed } from "@/lib/openai
 
 type Status = "idle" | "loading" | "review" | "done" | "error";
 
-export function PrescriptionScan() {
+export function PrescriptionScan({ profileId }: { profileId?: string }) {
   const [hasKey, setHasKey] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [err, setErr] = useState<string | null>(null);
@@ -111,6 +111,7 @@ export function PrescriptionScan() {
           intervalHours: p.intervalHours,
           startTime: times[0],
           times: times.length > 1 ? times : undefined,
+          profileId: profileId ?? "",
         });
       }
       setStatus("done");

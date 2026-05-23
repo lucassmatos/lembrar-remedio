@@ -1,3 +1,14 @@
+export const PROFILE_COLORS = ["sage", "clay", "amber", "violet", "sky", "sand"] as const;
+export type ProfileColor = (typeof PROFILE_COLORS)[number];
+
+export type Profile = {
+  id: string;
+  name: string;
+  color: ProfileColor;
+  isDefault?: boolean;
+  createdAt: number;
+};
+
 export type Medication = {
   id: string;
   name: string;
@@ -6,6 +17,7 @@ export type Medication = {
   startTime: string;
   times?: string[];
   durationMinutes?: number;
+  profileId: string;
   createdAt: number;
 };
 
