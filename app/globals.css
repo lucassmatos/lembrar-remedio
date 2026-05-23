@@ -63,13 +63,14 @@ body {
   font-feature-settings: "tnum", "cv01";
 }
 
-button, [role="button"] {
-  -webkit-tap-highlight-color: transparent;
-}
-
-input, button, select, textarea {
-  font: inherit;
-  color: inherit;
+@layer base {
+  button, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+  input, button, select, textarea {
+    font: inherit;
+    color: inherit;
+  }
 }
 
 @keyframes ring-pulse {
