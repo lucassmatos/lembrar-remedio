@@ -1,8 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as events from "aws-cdk-lib/aws-events";
-import * as iam from "aws-cdk-lib/aws-iam";
-import * as scheduler from "aws-cdk-lib/aws-scheduler";
+import * as targets from "aws-cdk-lib/aws-events-targets";
 
 export interface CronStackProps extends cdk.StackProps {
   cronUrl: string;
@@ -30,33 +29,19 @@ export class CronStack extends cdk.Stack {
       httpMethod: events.HttpMethod.POST,
     });
 
-    const role = new iam.Role(this, "SchedulerRole", {
-      assumedBy: new iam.ServicePrincipal("scheduler.amazonaws.com"),
+    const rule = new events.Rule(this, "NotifyRule", {
+      ruleName: "lembrar-remedio-notify",
+      schedule: events.Schedule.rate(cdk.Duration.minutes(props.rateMinutes)),
+      description: "Fires the Vercel cron notify endpoint",
     });
-    role.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["events:InvokeApiDestination"],
-        resources: [destination.apiDestinationArn],
+    rule.addTarget(
+      new targets.ApiDestination(destination, {
+        retryAttempts: 2,
+        maxEventAge: cdk.Duration.minutes(2),
       }),
     );
 
-    new scheduler.CfnSchedule(this, "NotifySchedule", {
-      name: "lembrar-remedio-notify",
-      flexibleTimeWindow: { mode: "OFF" },
-      scheduleExpression: `rate(${props.rateMinutes} minute${props.rateMinutes === 1 ? "" : "s"})`,
-      scheduleExpressionTimezone: "UTC",
-      state: "ENABLED",
-      target: {
-        arn: destination.apiDestinationArn,
-        roleArn: role.roleArn,
-        retryPolicy: {
-          maximumRetryAttempts: 2,
-          maximumEventAgeInSeconds: 120,
-        },
-      },
-    });
-
     new cdk.CfnOutput(this, "ApiDestinationArn", { value: destination.apiDestinationArn });
-    new cdk.CfnOutput(this, "ScheduleName", { value: "lembrar-remedio-notify" });
+    new cdk.CfnOutput(this, "RuleName", { value: "lembrar-remedio-notify" });
   }
 }
