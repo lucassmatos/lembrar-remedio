@@ -7,11 +7,18 @@ import type { Medication } from "@/lib/types";
 
 const INTERVAL_CHIPS = [4, 6, 8, 12, 24];
 
-export function MedForm({ onAdded }: { onAdded?: (m: Medication) => void }) {
-  const [name, setName] = useState("");
-  const [dosage, setDosage] = useState("");
-  const [intervalHours, setIntervalHours] = useState<number | "">(8);
-  const [startTime, setStartTime] = useState("08:00");
+type Props = {
+  med?: Medication;
+  onSaved?: (m: Medication) => void;
+  onCancel?: () => void;
+};
+
+export function MedForm({ med, onSaved, onCancel }: Props) {
+  const editing = !!med;
+  const [name, setName] = useState(med?.name ?? "");
+  const [dosage, setDosage] = useState(med?.dosage ?? "");
+  const [intervalHours, setIntervalHours] = useState<number | "">(med?.intervalHours ?? 8);
+  const [startTime, setStartTime] = useState(med?.startTime ?? "08:00");
   const [err, setErr] = useState<string | null>(null);
 
   function submit(e: React.FormEvent) {
@@ -19,22 +26,45 @@ export function MedForm({ onAdded }: { onAdded?: (m: Medication) => void }) {
     setErr(null);
     if (!name.trim()) return setErr("Dá um nome pro remédio.");
     if (!intervalHours || Number(intervalHours) <= 0) return setErr("Intervalo precisa ser maior que zero.");
-    const med: Medication = {
-      id: nanoid(8),
-      name: name.trim(),
-      dosage: dosage.trim() || undefined,
-      intervalHours: Number(intervalHours),
-      startTime,
-      createdAt: Date.now(),
-    };
+
     const meds = loadMeds();
-    meds.push(med);
+    let saved: Medication;
+
+    if (editing && med) {
+      const idx = meds.findIndex((m) => m.id === med.id);
+      if (idx < 0) {
+        setErr("Remédio não encontrado.");
+        return;
+      }
+      saved = {
+        ...meds[idx],
+        name: name.trim(),
+        dosage: dosage.trim() || undefined,
+        intervalHours: Number(intervalHours),
+        startTime,
+      };
+      meds[idx] = saved;
+    } else {
+      saved = {
+        id: nanoid(8),
+        name: name.trim(),
+        dosage: dosage.trim() || undefined,
+        intervalHours: Number(intervalHours),
+        startTime,
+        createdAt: Date.now(),
+      };
+      meds.push(saved);
+    }
+
     saveMeds(meds);
-    setName("");
-    setDosage("");
-    setIntervalHours(8);
-    setStartTime("08:00");
-    onAdded?.(med);
+
+    if (!editing) {
+      setName("");
+      setDosage("");
+      setIntervalHours(8);
+      setStartTime("08:00");
+    }
+    onSaved?.(saved);
   }
 
   return (
@@ -127,11 +157,21 @@ export function MedForm({ onAdded }: { onAdded?: (m: Medication) => void }) {
           type="submit"
           className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90"
         >
-          Adicionar
+          {editing ? "Salvar" : "Adicionar"}
         </button>
-        <span className="text-[13px] text-ink-faint">
-          os horários são gerados a partir da primeira hora
-        </span>
+        {editing ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+          >
+            cancelar
+          </button>
+        ) : (
+          <span className="text-[13px] text-ink-faint">
+            os horários são gerados a partir da primeira hora
+          </span>
+        )}
       </div>
     </form>
   );
