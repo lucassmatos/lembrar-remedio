@@ -54,21 +54,25 @@ export function TelegramPanel() {
   }, []);
 
   async function startPairing() {
-    console.log("[lr] startPairing click");
     setErr(null);
+    // Abre a aba SÍNCRONO, dentro do gesto do click. Senão popup blocker mata.
+    const opened = window.open("about:blank", "_blank");
     try {
       const res = await fetch("/api/telegram/pair", { method: "POST" });
-      console.log("[lr] pair response", res.status);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
       }
       const data = (await res.json()) as { url: string; token: string; expiresIn: number };
-      console.log("[lr] pair data", data);
+      if (opened && !opened.closed) {
+        opened.location.href = data.url;
+      } else {
+        window.location.href = data.url;
+      }
       setPair({ url: data.url, token: data.token });
       setMode("pairing");
     } catch (e) {
-      console.error("[lr] pair error", e);
+      if (opened && !opened.closed) opened.close();
       setErr(e instanceof Error ? e.message : "não consegui gerar o link");
     }
   }
@@ -117,31 +121,36 @@ export function TelegramPanel() {
     return (
       <div>
         <p className="font-display text-[22px] leading-tight tracking-tight text-ink">
-          esperando você abrir
+          <span
+            className="pulse-amber mr-3 inline-block size-2.5 -translate-y-[3px] rounded-full"
+            style={{ background: "var(--color-amber)" }}
+          />
+          esperando o Telegram
         </p>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
-          Abra esse link no Telegram, toque em <b>Start</b>. Em alguns segundos
-          essa página atualiza sozinha.
+          Toque em <b>Start</b> na conversa que abriu. Em alguns segundos essa
+          página atualiza sozinha.
         </p>
-        <a
-          href={pair.url}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-4 inline-block rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90"
-        >
-          Abrir Telegram
-        </a>
-        <p className="mt-3 text-[12px] text-ink-faint">link válido por 10 minutos.</p>
-        <button
-          type="button"
-          onClick={() => {
-            setPair(null);
-            setMode("unpaired");
-          }}
-          className="mt-3 ml-4 text-[12px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
-        >
-          cancelar
-        </button>
+        <div className="mt-4 flex items-center gap-4 text-[13px]">
+          <a
+            href={pair.url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-ink-soft underline decoration-edge-2 underline-offset-4 hover:text-ink"
+          >
+            abrir de novo
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              setPair(null);
+              setMode("unpaired");
+            }}
+            className="text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+          >
+            cancelar
+          </button>
+        </div>
         {err ? (
           <p className="mt-3 text-[13px]" style={{ color: "var(--color-clay)" }}>
             {err}
