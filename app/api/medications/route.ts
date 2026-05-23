@@ -30,6 +30,14 @@ export async function POST(req: NextRequest) {
     startTime: body.startTime,
     times: body.times,
     durationMinutes: body.durationMinutes,
+    durationDays:
+      typeof body.durationDays === "number" && body.durationDays > 0
+        ? body.durationDays
+        : undefined,
+    startDate:
+      typeof body.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.startDate)
+        ? body.startDate
+        : undefined,
     profileId,
     createdAt: Date.now(),
   };

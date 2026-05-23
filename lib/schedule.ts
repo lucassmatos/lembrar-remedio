@@ -29,6 +29,18 @@ export function generateSlotsForMed(med: Medication): string[] {
   return Array.from(new Set(times)).sort();
 }
 
+export function medWindow(
+  med: Medication,
+  tz: string,
+): { startDate: string; endDate: string | null } {
+  const startDate = med.startDate ?? dateInTz(med.createdAt, tz).date;
+  const endDate =
+    med.durationDays && med.durationDays > 0
+      ? addDays(startDate, med.durationDays - 1)
+      : null;
+  return { startDate, endDate };
+}
+
 export function todaySlots(
   meds: Medication[],
   log: DayLog,
@@ -39,8 +51,12 @@ export function todaySlots(
     let minMinutes: number | null = null;
     if (today) {
       const created = dateInTz(med.createdAt, today.tz);
-      if (created.date > today.date) continue;
-      if (created.date === today.date) minMinutes = created.minutes;
+      const { startDate, endDate } = medWindow(med, today.tz);
+      if (today.date < startDate) continue;
+      if (endDate && today.date > endDate) continue;
+      if (created.date === today.date && startDate === today.date) {
+        minMinutes = created.minutes;
+      }
     }
     for (const time of generateSlotsForMed(med)) {
       const minutes = parseTime(time);
@@ -58,6 +74,29 @@ export function todaySlots(
     }
   }
   return slots.sort((a, b) => a.minutes - b.minutes);
+}
+
+export function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const utc = Date.UTC(y, m - 1, d) + days * 86_400_000;
+  const x = new Date(utc);
+  const yy = x.getUTCFullYear();
+  const mm = String(x.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(x.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+export function daysBetween(a: string, b: string): number {
+  const [y1, m1, d1] = a.split("-").map(Number);
+  const [y2, m2, d2] = b.split("-").map(Number);
+  return Math.round(
+    (Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000,
+  );
+}
+
+export function formatBrDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  return `${d}/${m}/${y.slice(2)}`;
 }
 
 function dateInTz(timestamp: number, tz: string): { date: string; minutes: number } {

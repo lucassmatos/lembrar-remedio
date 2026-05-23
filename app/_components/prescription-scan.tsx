@@ -111,6 +111,7 @@ export function PrescriptionScan({ profileId }: { profileId?: string }) {
           intervalHours: p.intervalHours,
           startTime: times[0],
           times: times.length > 1 ? times : undefined,
+          durationDays: p.durationDays,
           profileId: profileId ?? "",
         });
       }
@@ -319,6 +320,31 @@ export function PrescriptionScan({ profileId }: { profileId?: string }) {
                           >
                             + horário
                           </button>
+                        </div>
+                      </Field>
+
+                      <Field label="Por quantos dias">
+                        <div className="flex items-baseline gap-3">
+                          <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={m.durationDays ?? ""}
+                            onChange={(e) =>
+                              updateParsed(i, {
+                                durationDays:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Math.max(1, Number(e.target.value)),
+                              })
+                            }
+                            placeholder="sem limite"
+                            className="w-24 bg-transparent pb-1 text-[14px] tnum text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+                            style={{ borderBottom: "1px solid var(--color-edge-2)" }}
+                          />
+                          {m.durationDays ? (
+                            <span className="text-[13px] text-ink-faint">dias</span>
+                          ) : null}
                         </div>
                       </Field>
 

@@ -22,11 +22,29 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const meds = await listMeds(s.sub);
   const existing = meds.find((m) => m.id === id);
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (
+    body.startDate !== undefined &&
+    body.startDate !== null &&
+    !(typeof body.startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.startDate))
+  ) {
+    return NextResponse.json({ error: "startDate inválido" }, { status: 400 });
+  }
+  if (
+    body.durationDays !== undefined &&
+    body.durationDays !== null &&
+    !(typeof body.durationDays === "number" && body.durationDays > 0)
+  ) {
+    return NextResponse.json({ error: "durationDays inválido" }, { status: 400 });
+  }
   const updated: Medication = {
     ...existing,
     ...body,
     id: existing.id,
     createdAt: existing.createdAt,
+    durationDays:
+      body.durationDays === null ? undefined : body.durationDays ?? existing.durationDays,
+    startDate:
+      body.startDate === null ? undefined : body.startDate ?? existing.startDate,
   };
   await putMed(s.sub, updated);
   return NextResponse.json({ med: updated });

@@ -17,6 +17,8 @@ export type Medication = {
   startTime: string;
   times?: string[];
   durationMinutes?: number;
+  durationDays?: number;
+  startDate?: string;
   profileId: string;
   createdAt: number;
 };

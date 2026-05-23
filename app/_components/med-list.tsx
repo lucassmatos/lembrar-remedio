@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Medication, Profile } from "@/lib/types";
-import { generateSlotsForMed } from "@/lib/schedule";
-import { deleteMed } from "@/lib/api";
+import {
+  daysBetween,
+  formatBrDate,
+  generateSlotsForMed,
+  medWindow,
+  nowInTz,
+} from "@/lib/schedule";
+import { deleteMed, getConfig } from "@/lib/api";
 import { MedForm } from "./med-form";
 import { ProfileBadge } from "./profile-badge";
 
@@ -14,6 +20,18 @@ export function MedList({
   meds: Medication[];
   profiles?: Profile[];
 }) {
+  const [tz, setTz] = useState("America/Sao_Paulo");
+  useEffect(() => {
+    let cancelled = false;
+    getConfig()
+      .then((c) => {
+        if (!cancelled) setTz(c.timezone);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const showProfile = profiles.length >= 2;
   const profileById = new Map(profiles.map((p) => [p.id, p]));
@@ -37,6 +55,9 @@ export function MedList({
       {meds.map((med) => {
         const isEditing = editingId === med.id;
         const times = generateSlotsForMed(med);
+        const window = med.durationDays ? medWindow(med, tz) : null;
+        const today = nowInTz(tz).date;
+        const durationLabel = renderDurationLabel(med, window, today);
         return (
           <li key={med.id} className="py-5">
             {isEditing ? (
@@ -68,6 +89,11 @@ export function MedList({
                       </span>
                     ))}
                   </div>
+                  {durationLabel ? (
+                    <div className="mt-2 text-[12px]" style={{ color: durationLabel.color }}>
+                      {durationLabel.text}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-4 text-[13px]">
                   <button
@@ -92,4 +118,37 @@ export function MedList({
       })}
     </ul>
   );
+}
+
+function renderDurationLabel(
+  _med: Medication,
+  window: { startDate: string; endDate: string | null } | null,
+  today: string,
+): { text: string; color: string } | null {
+  if (!window || !window.endDate) return null;
+  const { startDate, endDate } = window;
+  if (today < startDate) {
+    const days = Math.max(1, daysBetween(today, startDate));
+    return {
+      text: `começa em ${formatBrDate(startDate)} · daqui ${days} ${days === 1 ? "dia" : "dias"}`,
+      color: "var(--color-ink-faint)",
+    };
+  }
+  if (today > endDate) {
+    return {
+      text: `tratamento terminou em ${formatBrDate(endDate)}`,
+      color: "var(--color-ink-faint)",
+    };
+  }
+  const remaining = daysBetween(today, endDate);
+  if (remaining === 0) {
+    return {
+      text: `último dia · termina hoje`,
+      color: "var(--color-clay)",
+    };
+  }
+  return {
+    text: `faltam ${remaining} ${remaining === 1 ? "dia" : "dias"} · termina ${formatBrDate(endDate)}`,
+    color: remaining <= 2 ? "var(--color-clay)" : "var(--color-ink-faint)",
+  };
 }
