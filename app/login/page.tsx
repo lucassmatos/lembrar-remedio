@@ -1,4 +1,5 @@
 import { signIn } from "@/auth";
+import { safeFromParam } from "@/lib/login-redirect";
 
 export default async function LoginPage({
   searchParams,
@@ -6,7 +7,7 @@ export default async function LoginPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const callbackUrl = from || "/";
+  const callbackUrl = safeFromParam(from);
 
   async function login() {
     "use server";

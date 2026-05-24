@@ -8,3 +8,16 @@ export function buildLoginRedirect(nextUrl: URL): URL {
   }
   return url;
 }
+
+// Sanitize a `from` query param before using it as a post-login redirect target.
+// Only same-origin relative paths pass: must start with a single "/" — never
+// "//" (protocol-relative, resolves cross-origin) nor "/\" (some browsers
+// normalize the backslash to "/" → also cross-origin). Anything else, including
+// absolute URLs like https://evil.com, falls back to "/". Defense-in-depth: the
+// open `/login?from=` surface stays closed even if a custom NextAuth redirect
+// callback is added later.
+export function safeFromParam(from: string | undefined | null): string {
+  if (!from || !from.startsWith("/")) return "/";
+  if (from.startsWith("//") || from.startsWith("/\\")) return "/";
+  return from;
+}
