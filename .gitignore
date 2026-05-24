@@ -10,3 +10,4 @@ tsconfig.tsbuildinfo
 .DS_Store
 next-env.d.ts
 .gstack/
+.claude/worktrees/
