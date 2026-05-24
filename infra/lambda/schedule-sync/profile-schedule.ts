@@ -10,15 +10,17 @@ import {
 } from "@aws-sdk/client-scheduler";
 import { computeNextDose, defaultDeps, type NextDoseDeps } from "../../../lib/next-dose";
 
-const PREFIX = "lr-user-";
+const PREFIX = "lr-profile-";
 const REGION = process.env.AWS_REGION || "us-east-1";
-const NOTIFY_LAMBDA_ARN = process.env.NOTIFY_USER_LAMBDA_ARN || "";
+const NOTIFY_LAMBDA_ARN = process.env.NOTIFY_DOSE_LAMBDA_ARN || "";
 const SCHEDULER_ROLE_ARN = process.env.SCHEDULER_ROLE_ARN || "";
 
 const client = new SchedulerClient({ region: REGION });
 
-export function userScheduleName(sub: string): string {
-  const clean = sub.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50);
+export type ProfileTarget = { profileId: string; ownerSub: string };
+
+export function profileScheduleName(profileId: string): string {
+  const clean = profileId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50);
   return `${PREFIX}${clean}`;
 }
 
@@ -29,21 +31,21 @@ function atExpression(epochMs: number): string {
   return `at(${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())})`;
 }
 
-export type UpdateUserScheduleResult =
+export type UpdateProfileScheduleResult =
   | { action: "created"; nextAt: number }
   | { action: "updated"; nextAt: number }
   | { action: "deleted" }
   | { action: "noop" };
 
-export async function updateUserSchedule(
-  sub: string,
+export async function updateProfileSchedule(
+  target: ProfileTarget,
   deps: NextDoseDeps = defaultDeps,
-): Promise<UpdateUserScheduleResult> {
+): Promise<UpdateProfileScheduleResult> {
   if (!NOTIFY_LAMBDA_ARN || !SCHEDULER_ROLE_ARN) {
-    throw new Error("NOTIFY_USER_LAMBDA_ARN ou SCHEDULER_ROLE_ARN não configurados");
+    throw new Error("NOTIFY_DOSE_LAMBDA_ARN ou SCHEDULER_ROLE_ARN não configurados");
   }
-  const { nextAt } = await computeNextDose(sub, deps);
-  const name = userScheduleName(sub);
+  const { nextAt } = await computeNextDose(target, deps);
+  const name = profileScheduleName(target.profileId);
   const exists = await scheduleExists(name);
 
   if (nextAt === null) {
@@ -67,7 +69,7 @@ export async function updateUserSchedule(
         Target: {
           Arn: NOTIFY_LAMBDA_ARN,
           RoleArn: SCHEDULER_ROLE_ARN,
-          Input: JSON.stringify({ sub }),
+          Input: JSON.stringify({ profileId: target.profileId, ownerSub: target.ownerSub }),
           RetryPolicy: { MaximumRetryAttempts: 2, MaximumEventAgeInSeconds: 300 },
         },
       }),
@@ -85,7 +87,7 @@ export async function updateUserSchedule(
       Target: {
         Arn: NOTIFY_LAMBDA_ARN,
         RoleArn: SCHEDULER_ROLE_ARN,
-        Input: JSON.stringify({ sub }),
+        Input: JSON.stringify({ profileId: target.profileId, ownerSub: target.ownerSub }),
         RetryPolicy: { MaximumRetryAttempts: 2, MaximumEventAgeInSeconds: 300 },
       },
     }),
@@ -93,8 +95,8 @@ export async function updateUserSchedule(
   return { action: "updated", nextAt: fireAt };
 }
 
-export async function deleteUserSchedule(sub: string): Promise<boolean> {
-  const name = userScheduleName(sub);
+export async function deleteProfileSchedule(profileId: string): Promise<boolean> {
+  const name = profileScheduleName(profileId);
   return deleteSchedule(name);
 }
 

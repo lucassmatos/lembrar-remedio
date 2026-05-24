@@ -76,6 +76,27 @@ There is no in-place rollback once originals are deleted.
 
 ## Post-deploy cleanup
 
-After Phase D is fully deployed and verified, run the cleanup script to remove
-old `lr-user-*` EventBridge Scheduler schedules. (Script is in Phase D —
-`infra/scripts/cleanup-old-schedules.ts`.)
+After Phase D is fully deployed and verified in production, remove the old
+per-user EventBridge Scheduler schedules (`lr-user-*`) that were replaced by
+per-profile schedules (`lr-profile-*`).
+
+### Dry-run (always run this first)
+
+```bash
+cd infra
+AWS_REGION=us-east-1 npx -p tsx tsx scripts/cleanup-old-schedules.ts --dry-run
+```
+
+Review the output — each line is one schedule that would be deleted. Confirm
+the count looks right (one per active user that had reminders).
+
+### Real run
+
+```bash
+cd infra
+AWS_REGION=us-east-1 npx -p tsx tsx scripts/cleanup-old-schedules.ts
+```
+
+The script paginates via `NextToken`, handles `ResourceNotFoundException`
+(already-deleted schedules) gracefully, and prints a summary at the end.
+It is idempotent — safe to re-run.

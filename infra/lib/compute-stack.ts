@@ -12,13 +12,13 @@ export interface ComputeStackProps extends cdk.StackProps {
   table: dynamodb.Table;
 }
 
-const NOTIFY_USER_FN_NAME = "lembrar-remedio-notify-user";
+const NOTIFY_DOSE_FN_NAME = "lembrar-remedio-notify-dose";
 const SYNC_FN_NAME = "lembrar-remedio-schedule-sync";
 const SCHEDULER_ROLE_NAME = "lembrar-remedio-scheduler-invoke";
 const TELEGRAM_TOKEN_SECRET_NAME = "lembrar-remedio/telegram-bot-token";
 
 export class ComputeStack extends cdk.Stack {
-  public readonly notifyUserFn: nodejs.NodejsFunction;
+  public readonly notifyDoseFn: nodejs.NodejsFunction;
   public readonly syncFn: nodejs.NodejsFunction;
   public readonly schedulerRole: iam.Role;
 
@@ -36,9 +36,9 @@ export class ComputeStack extends cdk.Stack {
     };
 
     // Constructed statically to avoid CDK self-reference cycles.
-    // NotifyUserFn refers to SchedulerRole (PassRole + env), SchedulerRole refers
-    // to NotifyUserFn (grantInvoke). Using known names breaks the dep cycle.
-    const notifyUserFnArn = `arn:aws:lambda:${this.region}:${this.account}:function:${NOTIFY_USER_FN_NAME}`;
+    // NotifyDoseFn refers to SchedulerRole (PassRole + env), SchedulerRole refers
+    // to NotifyDoseFn (grantInvoke). Using known names breaks the dep cycle.
+    const notifyDoseFnArn = `arn:aws:lambda:${this.region}:${this.account}:function:${NOTIFY_DOSE_FN_NAME}`;
     const schedulerRoleArn = `arn:aws:iam::${this.account}:role/${SCHEDULER_ROLE_NAME}`;
 
     // Telegram bot token lives in Secrets Manager (created out-of-band).
@@ -49,11 +49,11 @@ export class ComputeStack extends cdk.Stack {
       TELEGRAM_TOKEN_SECRET_NAME,
     );
 
-    // notify-user Lambda — chamado pelo schedule do usuário, processa todas as
+    // notify-dose Lambda — chamado pelo schedule do perfil, processa todas as
     // doses devidas naquele momento e reagenda pro próximo nextAt.
-    this.notifyUserFn = new nodejs.NodejsFunction(this, "NotifyUserFn", {
-      functionName: NOTIFY_USER_FN_NAME,
-      entry: path.join(projectRoot, "infra/lambda/notify-user/handler.ts"),
+    this.notifyDoseFn = new nodejs.NodejsFunction(this, "NotifyDoseFn", {
+      functionName: NOTIFY_DOSE_FN_NAME,
+      entry: path.join(projectRoot, "infra/lambda/notify-dose/handler.ts"),
       depsLockFilePath: path.join(projectRoot, "infra/package-lock.json"),
       projectRoot,
       handler: "handler",
@@ -63,17 +63,17 @@ export class ComputeStack extends cdk.Stack {
       environment: {
         DDB_TABLE_NAME: props.table.tableName,
         TELEGRAM_BOT_TOKEN_SECRET_ARN: telegramTokenSecret.secretArn,
-        NOTIFY_USER_LAMBDA_ARN: notifyUserFnArn,
+        NOTIFY_DOSE_LAMBDA_ARN: notifyDoseFnArn,
         SCHEDULER_ROLE_ARN: schedulerRoleArn,
       },
       bundling: commonBundling,
       logRetention: 14 as never,
     });
-    props.table.grantReadWriteData(this.notifyUserFn);
-    telegramTokenSecret.grantRead(this.notifyUserFn);
+    props.table.grantReadWriteData(this.notifyDoseFn);
+    telegramTokenSecret.grantRead(this.notifyDoseFn);
 
-    // notify-user reagenda a si própria.
-    this.notifyUserFn.addToRolePolicy(
+    // notify-dose reagenda a si própria.
+    this.notifyDoseFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
           "scheduler:CreateSchedule",
@@ -84,14 +84,14 @@ export class ComputeStack extends cdk.Stack {
         resources: ["*"],
       }),
     );
-    this.notifyUserFn.addToRolePolicy(
+    this.notifyDoseFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["iam:PassRole"],
         resources: [schedulerRoleArn],
       }),
     );
 
-    // Role usado pelo EventBridge Scheduler pra invocar a notify-user.
+    // Role usado pelo EventBridge Scheduler pra invocar o notify-dose.
     this.schedulerRole = new iam.Role(this, "SchedulerRole", {
       assumedBy: new iam.ServicePrincipal("scheduler.amazonaws.com"),
       roleName: SCHEDULER_ROLE_NAME,
@@ -99,11 +99,11 @@ export class ComputeStack extends cdk.Stack {
     this.schedulerRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ["lambda:InvokeFunction"],
-        resources: [notifyUserFnArn, `${notifyUserFnArn}:*`],
+        resources: [notifyDoseFnArn, `${notifyDoseFnArn}:*`],
       }),
     );
 
-    // schedule-sync Lambda — escuta o stream do DDB, mantém o schedule do user.
+    // schedule-sync Lambda — escuta o stream do DDB, mantém o schedule do perfil.
     this.syncFn = new nodejs.NodejsFunction(this, "SyncFn", {
       functionName: SYNC_FN_NAME,
       entry: path.join(projectRoot, "infra/lambda/schedule-sync/handler.ts"),
@@ -115,7 +115,7 @@ export class ComputeStack extends cdk.Stack {
       memorySize: 512,
       environment: {
         DDB_TABLE_NAME: props.table.tableName,
-        NOTIFY_USER_LAMBDA_ARN: notifyUserFnArn,
+        NOTIFY_DOSE_LAMBDA_ARN: notifyDoseFnArn,
         SCHEDULER_ROLE_ARN: schedulerRoleArn,
       },
       bundling: commonBundling,
@@ -152,7 +152,7 @@ export class ComputeStack extends cdk.Stack {
       }),
     );
 
-    new cdk.CfnOutput(this, "NotifyUserFnArn", { value: this.notifyUserFn.functionArn });
+    new cdk.CfnOutput(this, "NotifyDoseFnArn", { value: this.notifyDoseFn.functionArn });
     new cdk.CfnOutput(this, "SyncFnArn", { value: this.syncFn.functionArn });
     new cdk.CfnOutput(this, "SchedulerRoleArn", { value: this.schedulerRole.roleArn });
   }

@@ -1,9 +1,11 @@
 import type { DynamoDBStreamEvent, DynamoDBRecord } from "aws-lambda";
-import { updateUserSchedule, deleteUserSchedule } from "./user-schedule";
+import { GetCommand } from "@aws-sdk/lib-dynamodb";
+import { updateProfileSchedule, deleteProfileSchedule } from "./profile-schedule";
+import { _internal } from "../../../lib/ddb";
 
 type Decision =
-  | { action: "update"; sub: string }
-  | { action: "delete"; sub: string }
+  | { action: "update"; profileId: string }
+  | { action: "delete"; profileId: string }
   | null;
 
 function decide(record: DynamoDBRecord): Decision {
@@ -11,46 +13,62 @@ function decide(record: DynamoDBRecord): Decision {
   const pk = keys?.pk?.S;
   const sk = keys?.sk?.S;
   if (!pk || !sk) return null;
-  if (!pk.startsWith("user#")) return null;
-  const sub = pk.slice("user#".length);
+  if (!pk.startsWith("profile#")) return null;
+  const profileId = pk.slice("profile#".length);
 
-  // Only changes that shift next-dose calculation. Skip log#, notified#, profile#.
-  if (sk.startsWith("reminder#")) return { action: "update", sub };
-  if (sk === "config") {
-    if (record.eventName === "REMOVE") return { action: "delete", sub };
-    return { action: "update", sub };
+  // Only changes that shift next-dose calculation. Skip log#, notified#.
+  if (sk.startsWith("reminder#")) return { action: "update", profileId };
+  if (sk === "meta" && record.eventName === "REMOVE") {
+    // Profile was deleted — remove its schedule.
+    return { action: "delete", profileId };
   }
   return null;
 }
 
 export async function handler(event: DynamoDBStreamEvent): Promise<void> {
-  // Coalesce a batch into one operation per (sub). Delete wins over update.
+  // Coalesce a batch into one operation per profileId. Delete wins over update.
   const updates = new Set<string>();
   const deletes = new Set<string>();
 
   for (const record of event.Records) {
     const d = decide(record);
     if (!d) continue;
-    if (d.action === "delete") deletes.add(d.sub);
-    else updates.add(d.sub);
+    if (d.action === "delete") deletes.add(d.profileId);
+    else updates.add(d.profileId);
   }
-  for (const sub of deletes) updates.delete(sub);
+  for (const profileId of deletes) updates.delete(profileId);
 
-  for (const sub of deletes) {
+  for (const profileId of deletes) {
     try {
-      const removed = await deleteUserSchedule(sub);
-      console.log("user schedule deleted", { sub, removed });
+      const removed = await deleteProfileSchedule(profileId);
+      console.log("profile schedule deleted", { profileId, removed });
     } catch (e) {
-      console.error("failed to delete user schedule", { sub }, e);
+      console.error("failed to delete profile schedule", { profileId }, e);
       throw e;
     }
   }
-  for (const sub of updates) {
+
+  for (const profileId of updates) {
     try {
-      const result = await updateUserSchedule(sub);
-      console.log("user schedule synced", { sub, ...result });
+      // Look up ownerSub from the profile#<id>/meta sentinel.
+      const { PK, doc, TABLE } = _internal;
+      const metaRes = await doc.send(
+        new GetCommand({
+          TableName: TABLE,
+          Key: { pk: PK.profile(profileId), sk: "meta" },
+        }),
+      );
+      if (!metaRes.Item) {
+        // meta is gone — profile was deleted in a race; delete schedule instead.
+        console.log("profile meta not found, deleting schedule", { profileId });
+        await deleteProfileSchedule(profileId);
+        continue;
+      }
+      const ownerSub = metaRes.Item.ownerSub as string;
+      const result = await updateProfileSchedule({ profileId, ownerSub });
+      console.log("profile schedule synced", { profileId, ownerSub, ...result });
     } catch (e) {
-      console.error("failed to sync user schedule", { sub }, e);
+      console.error("failed to sync profile schedule", { profileId }, e);
       throw e;
     }
   }
