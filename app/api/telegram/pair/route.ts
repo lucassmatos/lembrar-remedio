@@ -11,7 +11,7 @@ export async function POST() {
   const s = await requireSession();
   if (!s.ok) return s.response;
   const token = nanoid(16);
-  await putPairToken(token, s.sub, 600);
+  await putPairToken(token, s.sub, 120);
   const url = `https://t.me/${botUsername()}?start=${token}`;
-  return NextResponse.json({ token, url, expiresIn: 600 });
+  return NextResponse.json({ token, url, expiresIn: 120 });
 }

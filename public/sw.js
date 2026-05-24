@@ -1,5 +1,5 @@
-const CACHE = "lr-shell-v3";
-const SHELL = ["/", "/medications", "/settings", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "lr-shell-v4";
+const SHELL = ["/", "/medications", "/settings", "/upcoming", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -22,6 +22,12 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
+
+  // Never cache authenticated API responses — risk of leaking one user's data
+  // to another user on a shared device.
+  if (url.pathname.startsWith("/api/")) return;
+  // Auth flows need fresh state.
+  if (url.pathname.startsWith("/login") || url.pathname.startsWith("/_next/data")) return;
 
   event.respondWith(
     fetch(req)

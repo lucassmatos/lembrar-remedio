@@ -1,15 +1,24 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
+  BatchWriteCommand,
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   DeleteCommand,
   QueryCommand,
-  BatchWriteCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { nanoid } from "nanoid";
-import type { Config, DayLog, Medication, Profile, ProfileColor } from "./types";
+import type {
+  Config,
+  DayLog,
+  Profile,
+  ProfileColor,
+  Reminder,
+  ReminderStatus,
+} from "./types";
 import { PROFILE_COLORS } from "./types";
+import { devDoc, isDevLocal } from "./dev-store";
 
 const TABLE = process.env.DDB_TABLE_NAME || "lembrar-remedio";
 const REGION = process.env.LR_AWS_REGION || process.env.AWS_REGION || "us-east-1";
@@ -19,15 +28,19 @@ const REGION = process.env.LR_AWS_REGION || process.env.AWS_REGION || "us-east-1
 const lrAccessKey = process.env.LR_AWS_ACCESS_KEY_ID;
 const lrSecretKey = process.env.LR_AWS_SECRET_ACCESS_KEY;
 
-const raw = new DynamoDBClient({
-  region: REGION,
-  credentials: lrAccessKey && lrSecretKey
-    ? { accessKeyId: lrAccessKey, secretAccessKey: lrSecretKey }
-    : undefined,
-});
-const doc = DynamoDBDocumentClient.from(raw, {
-  marshallOptions: { removeUndefinedValues: true, convertEmptyValues: false },
-});
+const realDoc = (() => {
+  const raw = new DynamoDBClient({
+    region: REGION,
+    credentials: lrAccessKey && lrSecretKey
+      ? { accessKeyId: lrAccessKey, secretAccessKey: lrSecretKey }
+      : undefined,
+  });
+  return DynamoDBDocumentClient.from(raw, {
+    marshallOptions: { removeUndefinedValues: true, convertEmptyValues: false },
+  });
+})();
+
+const doc = (isDevLocal() ? devDoc : realDoc) as typeof realDoc;
 
 const PK = {
   user: (sub: string) => `user#${sub}`,
@@ -37,7 +50,7 @@ const PK = {
 };
 const SK = {
   config: "config",
-  med: (id: string) => `med#${id}`,
+  reminder: (id: string) => `reminder#${id}`,
   profile: (id: string) => `profile#${id}`,
   log: (date: string) => `log#${date}`,
   notified: (date: string) => `notified#${date}`,
@@ -125,9 +138,9 @@ export async function putProfile(sub: string, profile: Profile): Promise<Profile
 }
 
 export async function deleteProfileCascade(sub: string, profileId: string): Promise<void> {
-  const meds = await listMeds(sub);
-  const orphaned = meds.filter((m) => m.profileId === profileId);
-  for (const m of orphaned) await deleteMed(sub, m.id);
+  const reminders = await listReminders(sub);
+  const orphaned = reminders.filter((r) => r.profileId === profileId);
+  for (const r of orphaned) await deleteReminder(sub, r.id);
   await doc.send(
     new DeleteCommand({
       TableName: TABLE,
@@ -185,46 +198,52 @@ export async function setConfig(sub: string, patch: Partial<Config>): Promise<Co
   return merged;
 }
 
-export async function listMeds(sub: string): Promise<Medication[]> {
+export async function listReminders(sub: string): Promise<Reminder[]> {
   const res = await doc.send(
     new QueryCommand({
       TableName: TABLE,
       KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
-      ExpressionAttributeValues: { ":pk": PK.user(sub), ":sk": "med#" },
+      ExpressionAttributeValues: { ":pk": PK.user(sub), ":sk": "reminder#" },
     }),
   );
-  const meds = (res.Items ?? []).map(stripKeys<Medication>);
-  const needsBackfill = meds.some((m) => !m.profileId);
-  if (!needsBackfill) return meds;
-  const def = await ensureDefaultProfile(sub);
-  const repaired: Medication[] = [];
-  for (const m of meds) {
-    if (m.profileId) {
-      repaired.push(m);
-      continue;
-    }
-    const fixed = { ...m, profileId: def.id };
-    await putMed(sub, fixed);
-    repaired.push(fixed);
-  }
-  return repaired;
+  return (res.Items ?? []).map(stripKeys<Reminder>);
 }
 
-export async function putMed(sub: string, med: Medication): Promise<Medication> {
+export async function getReminder(sub: string, id: string): Promise<Reminder | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.reminder(id) } }),
+  );
+  if (!res.Item) return null;
+  return stripKeys<Reminder>(res.Item);
+}
+
+export async function putReminder(sub: string, reminder: Reminder): Promise<Reminder> {
   await doc.send(
     new PutCommand({
       TableName: TABLE,
-      Item: { pk: PK.user(sub), sk: SK.med(med.id), ...med },
+      Item: { pk: PK.user(sub), sk: SK.reminder(reminder.id), ...reminder },
     }),
   );
-  return med;
+  return reminder;
 }
 
-export async function deleteMed(sub: string, id: string): Promise<void> {
+export async function setReminderStatus(
+  sub: string,
+  id: string,
+  status: ReminderStatus,
+): Promise<Reminder | null> {
+  const existing = await getReminder(sub, id);
+  if (!existing) return null;
+  const updated: Reminder = { ...existing, status };
+  await putReminder(sub, updated);
+  return updated;
+}
+
+export async function deleteReminder(sub: string, id: string): Promise<void> {
   await doc.send(
     new DeleteCommand({
       TableName: TABLE,
-      Key: { pk: PK.user(sub), sk: SK.med(id) },
+      Key: { pk: PK.user(sub), sk: SK.reminder(id) },
     }),
   );
 }
@@ -271,23 +290,50 @@ export async function wasNotified(sub: string, date: string, slotKey: string): P
   return keys.includes(slotKey);
 }
 
-export async function markNotified(sub: string, date: string, slotKey: string): Promise<void> {
+export async function getNotifiedKeys(sub: string, date: string): Promise<Set<string>> {
   const res = await doc.send(
     new GetCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.notified(date) } }),
   );
-  const keys = new Set<string>(((res.Item?.keys ?? []) as string[]));
-  keys.add(slotKey);
-  await doc.send(
-    new PutCommand({
-      TableName: TABLE,
-      Item: {
-        pk: PK.user(sub),
-        sk: SK.notified(date),
-        keys: Array.from(keys),
-        ttl: Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60,
-      },
-    }),
-  );
+  const keys = (res.Item?.keys ?? []) as string[];
+  return new Set(keys);
+}
+
+/**
+ * Atomic check-and-mark. Returns true if the caller won the race (we should
+ * fire the notification). Returns false if someone else already marked it
+ * (skip — avoid duplicate Telegram messages on Lambda retry).
+ */
+export async function markNotified(
+  sub: string,
+  date: string,
+  slotKey: string,
+): Promise<boolean> {
+  const ttl = Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60;
+  try {
+    await doc.send(
+      new UpdateCommand({
+        TableName: TABLE,
+        Key: { pk: PK.user(sub), sk: SK.notified(date) },
+        UpdateExpression:
+          "SET #keys = list_append(if_not_exists(#keys, :empty), :new), #ttl = :ttl",
+        ConditionExpression:
+          "attribute_not_exists(#keys) OR NOT contains(#keys, :slotKey)",
+        ExpressionAttributeNames: { "#keys": "keys", "#ttl": "ttl" },
+        ExpressionAttributeValues: {
+          ":empty": [] as string[],
+          ":new": [slotKey],
+          ":slotKey": slotKey,
+          ":ttl": ttl,
+        },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") {
+      return false;
+    }
+    throw e;
+  }
 }
 
 export async function listAllUsers(): Promise<{ sub: string; email?: string; hasChat?: boolean }[]> {
@@ -319,17 +365,30 @@ export async function putPairToken(token: string, sub: string, ttlSeconds: numbe
   );
 }
 
+/**
+ * Atomic consume — only one caller wins. Returns the sub if we won (the token
+ * was valid and is now gone), or null if expired/missing/already-consumed.
+ */
 export async function consumePairToken(token: string): Promise<string | null> {
-  const res = await doc.send(
-    new GetCommand({ TableName: TABLE, Key: { pk: PK.pair(token), sk: SK.pair } }),
-  );
-  if (!res.Item) return null;
-  const ttl = res.Item.ttl as number | undefined;
-  if (ttl && ttl * 1000 < Date.now()) return null;
-  await doc.send(
-    new DeleteCommand({ TableName: TABLE, Key: { pk: PK.pair(token), sk: SK.pair } }),
-  );
-  return res.Item.sub as string;
+  try {
+    const res = await doc.send(
+      new DeleteCommand({
+        TableName: TABLE,
+        Key: { pk: PK.pair(token), sk: SK.pair },
+        ConditionExpression:
+          "attribute_exists(pk) AND (attribute_not_exists(#ttl) OR #ttl > :now)",
+        ExpressionAttributeNames: { "#ttl": "ttl" },
+        ExpressionAttributeValues: { ":now": Math.floor(Date.now() / 1000) },
+        ReturnValues: "ALL_OLD",
+      }),
+    );
+    return (res.Attributes?.sub as string) ?? null;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") {
+      return null;
+    }
+    throw e;
+  }
 }
 
 export async function setChatMapping(chatId: number, sub: string): Promise<void> {
@@ -346,6 +405,64 @@ export async function getChatOwner(chatId: number): Promise<string | null> {
     new GetCommand({ TableName: TABLE, Key: { pk: PK.chat(chatId), sk: SK.chat } }),
   );
   return (res.Item?.sub as string) ?? null;
+}
+
+/**
+ * Wipes everything for a user — reminders, profiles, config, logs, notified,
+ * chat mapping, and the users index entry. For LGPD account deletion.
+ */
+export async function deleteUserCascade(sub: string): Promise<{ items: number }> {
+  let chatIdToCleanup: number | undefined;
+  let lek: Record<string, unknown> | undefined;
+  let totalDeleted = 0;
+  do {
+    const res = await doc.send(
+      new QueryCommand({
+        TableName: TABLE,
+        KeyConditionExpression: "pk = :pk",
+        ExpressionAttributeValues: { ":pk": PK.user(sub) },
+        ExclusiveStartKey: lek,
+      }),
+    );
+    const items = res.Items ?? [];
+    for (const it of items) {
+      if (it.sk === "config" && typeof it.chatId === "number") {
+        chatIdToCleanup = it.chatId as number;
+      }
+    }
+    for (let i = 0; i < items.length; i += 25) {
+      const batch = items.slice(i, i + 25);
+      await doc.send(
+        new BatchWriteCommand({
+          RequestItems: {
+            [TABLE]: batch.map((it) => ({
+              DeleteRequest: { Key: { pk: it.pk, sk: it.sk } },
+            })),
+          },
+        }),
+      );
+    }
+    totalDeleted += items.length;
+    lek = res.LastEvaluatedKey;
+  } while (lek);
+
+  if (chatIdToCleanup !== undefined) {
+    await doc.send(
+      new DeleteCommand({
+        TableName: TABLE,
+        Key: { pk: PK.chat(chatIdToCleanup), sk: SK.chat },
+      }),
+    );
+  }
+
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.users, sk: SK.userIndex(sub) },
+    }),
+  );
+
+  return { items: totalDeleted };
 }
 
 function stripKeys<T>(item: Record<string, unknown>): T {

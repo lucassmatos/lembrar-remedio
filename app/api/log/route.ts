@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConfig, getLog, setLogEntry } from "@/lib/ddb";
+import { getConfig, getLog, listReminders, setLogEntry } from "@/lib/ddb";
 import { requireSession } from "@/lib/session";
 import { nowInTz } from "@/lib/schedule";
+import { LogPostSchema, parseBody } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,21 +11,31 @@ export async function GET(req: NextRequest) {
   const s = await requireSession();
   if (!s.ok) return s.response;
   const url = new URL(req.url);
+  const date = url.searchParams.get("date");
   const cfg = await getConfig(s.sub);
-  const date = url.searchParams.get("date") ?? nowInTz(cfg.timezone).date;
-  const log = await getLog(s.sub, date);
-  return NextResponse.json({ date, log });
+  const effectiveDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? date
+    : nowInTz(cfg.timezone).date;
+  const log = await getLog(s.sub, effectiveDate);
+  return NextResponse.json({ date: effectiveDate, log });
 }
 
 export async function POST(req: NextRequest) {
   const s = await requireSession();
   if (!s.ok) return s.response;
-  const body = (await req.json()) as { date?: string; slotKey: string; taken: boolean };
-  if (!body.slotKey || typeof body.taken !== "boolean") {
-    return NextResponse.json({ error: "slotKey e taken obrigatórios" }, { status: 400 });
+  const parsed = await parseBody(req, LogPostSchema);
+  if (!parsed.ok) return parsed.response;
+  const { date, slotKey, taken } = parsed.data;
+
+  // slotKey is `${reminderId}@HH:MM` — ensure the reminderId belongs to this user.
+  const [reminderId] = slotKey.split("@");
+  const reminders = await listReminders(s.sub);
+  if (!reminders.some((r) => r.id === reminderId)) {
+    return NextResponse.json({ error: "slotKey desconhecido" }, { status: 404 });
   }
+
   const cfg = await getConfig(s.sub);
-  const date = body.date ?? nowInTz(cfg.timezone).date;
-  const log = await setLogEntry(s.sub, date, body.slotKey, body.taken);
-  return NextResponse.json({ date, log });
+  const effectiveDate = date ?? nowInTz(cfg.timezone).date;
+  const log = await setLogEntry(s.sub, effectiveDate, slotKey, taken);
+  return NextResponse.json({ date: effectiveDate, log });
 }

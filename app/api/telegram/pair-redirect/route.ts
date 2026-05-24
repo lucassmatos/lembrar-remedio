@@ -11,7 +11,7 @@ export async function GET() {
   const s = await requireSession();
   if (!s.ok) return s.response;
   const token = nanoid(16);
-  await putPairToken(token, s.sub, 600);
+  await putPairToken(token, s.sub, 120);
   const url = `https://t.me/${botUsername()}?start=${token}`;
   return NextResponse.redirect(url, 302);
 }

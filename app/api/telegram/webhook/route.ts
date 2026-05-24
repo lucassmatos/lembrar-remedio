@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "node:crypto";
 import {
   consumePairToken,
   getChatOwner,
@@ -6,6 +7,7 @@ import {
   setChatMapping,
   setConfig,
   setLogEntry,
+  setReminderStatus,
 } from "@/lib/ddb";
 import { answerCallback, editMessage, sendMessage, escapeHtml } from "@/lib/telegram";
 import { nowInTz } from "@/lib/schedule";
@@ -26,13 +28,37 @@ type Update = {
   };
 };
 
+function constantTimeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+const SLOT_KEY_RE = /^[A-Za-z0-9_-]{1,32}@\d{2}:\d{2}$/;
+const REMINDER_ID_RE = /^[A-Za-z0-9_-]{1,16}$/;
+
 export async function POST(req: NextRequest) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (secret && req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
+  if (!secret) {
+    console.error("TELEGRAM_WEBHOOK_SECRET not configured");
+    return new NextResponse("misconfigured", { status: 500 });
+  }
+  const got = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
+  if (!constantTimeEqual(got, secret)) {
     return new NextResponse("forbidden", { status: 403 });
   }
 
-  const update = (await req.json()) as Update;
+  const text = await req.text();
+  if (text.length > 64 * 1024) {
+    return new NextResponse("payload too large", { status: 413 });
+  }
+  let update: Update;
+  try {
+    update = JSON.parse(text) as Update;
+  } catch {
+    return new NextResponse("invalid json", { status: 400 });
+  }
 
   if (update.message) {
     await handleMessage(update.message);
@@ -47,7 +73,7 @@ export async function POST(req: NextRequest) {
 
 async function handleMessage(msg: NonNullable<Update["message"]>) {
   const chatId = msg.chat.id;
-  const text = (msg.text || "").trim();
+  const text = (msg.text || "").trim().slice(0, 1024);
 
   if (text.startsWith("/start")) {
     const parts = text.split(/\s+/);
@@ -99,7 +125,7 @@ async function handleMessage(msg: NonNullable<Update["message"]>) {
 }
 
 async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
-  const data = cq.data || "";
+  const data = (cq.data || "").slice(0, 128);
   const chat = cq.message?.chat;
   if (!chat) {
     await answerCallback(cq.id);
@@ -113,23 +139,44 @@ async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
   const cfg = await getConfig(sub);
   const date = nowInTz(cfg.timezone).date;
 
-  if (data.startsWith("taken:")) {
-    const slotKey = data.slice("taken:".length);
-    await setLogEntry(sub, date, slotKey, true);
-    await answerCallback(cq.id, "Marcado ✓");
+  if (data.startsWith("taken:") || data.startsWith("skip:")) {
+    const slotKey = data.slice(data.indexOf(":") + 1);
+    if (!SLOT_KEY_RE.test(slotKey)) {
+      await answerCallback(cq.id, "Botão inválido.");
+      return;
+    }
+    const taken = data.startsWith("taken:");
+    await setLogEntry(sub, date, slotKey, taken);
+    await answerCallback(cq.id, taken ? "Marcado ✓" : "Pulado");
     if (cq.message) {
-      const newText = (cq.message.text || "") + "\n\n<b>✓ Tomado</b>";
+      const newText =
+        (cq.message.text || "") + (taken ? "\n\n<b>✓ Tomado</b>" : "\n\n<b>— Pulado</b>");
       await editMessage({ chatId: chat.id, messageId: cq.message.message_id, text: newText });
     }
-  } else if (data.startsWith("skip:")) {
-    const slotKey = data.slice("skip:".length);
-    await setLogEntry(sub, date, slotKey, false);
-    await answerCallback(cq.id, "Pulado");
-    if (cq.message) {
-      const newText = (cq.message.text || "") + "\n\n<b>— Pulado</b>";
-      await editMessage({ chatId: chat.id, messageId: cq.message.message_id, text: newText });
-    }
-  } else {
-    await answerCallback(cq.id);
+    return;
   }
+
+  if (data.startsWith("agendei:") || data.startsWith("fiz:")) {
+    const reminderId = data.slice(data.indexOf(":") + 1);
+    if (!REMINDER_ID_RE.test(reminderId)) {
+      await answerCallback(cq.id, "Botão inválido.");
+      return;
+    }
+    const nextStatus = data.startsWith("agendei:") ? "scheduled" : "done";
+    const updated = await setReminderStatus(sub, reminderId, nextStatus);
+    if (!updated) {
+      await answerCallback(cq.id, "Lembrete não encontrado.");
+      return;
+    }
+    await answerCallback(cq.id, nextStatus === "scheduled" ? "Agendado ✓" : "Feito ✓");
+    if (cq.message) {
+      const newText =
+        (cq.message.text || "") +
+        (nextStatus === "scheduled" ? "\n\n<b>✓ Agendado</b>" : "\n\n<b>✓ Feito</b>");
+      await editMessage({ chatId: chat.id, messageId: cq.message.message_id, text: newText });
+    }
+    return;
+  }
+
+  await answerCallback(cq.id);
 }

@@ -24,6 +24,9 @@ export default function SettingsPage() {
   const [openaiModel, setOpenaiModel] = useState(DEFAULT_OPENAI_MODEL);
   const [showKey, setShowKey] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -70,6 +73,31 @@ export default function SettingsPage() {
       if (k && k.startsWith("lr.")) localStorage.removeItem(k);
     }
     location.reload();
+  }
+
+  function exportData() {
+    window.location.href = "/api/user/export";
+  }
+
+  async function deleteAccount() {
+    setDeleteError("");
+    setDeleteBusy(true);
+    try {
+      const res = await fetch("/api/user", { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `falhou (${res.status})`);
+      }
+      // Limpa localStorage também (BYOK key) e sai.
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("lr.")) localStorage.removeItem(k);
+      }
+      await signOut({ callbackUrl: "/login" });
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "erro");
+      setDeleteBusy(false);
+    }
   }
 
   return (
@@ -243,13 +271,65 @@ export default function SettingsPage() {
             ) : null}
           </Section>
 
-          <Section label="zona de risco">
+          <Section label="seus dados">
             <button
-              onClick={clearLocal}
-              className="text-[13px] underline decoration-edge-2 underline-offset-4 hover:text-clay"
+              onClick={exportData}
+              className="text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
             >
-              limpar dados deste navegador
+              baixar tudo em JSON
             </button>
+            <p className="mt-2 text-[12px] text-ink-faint">
+              perfis, remédios, vacinas, retornos e adesão dos últimos 60 dias.
+            </p>
+          </Section>
+
+          <Section label="zona de risco">
+            <div className="space-y-5">
+              <div>
+                <button
+                  onClick={clearLocal}
+                  className="text-[13px] underline decoration-edge-2 underline-offset-4 hover:text-clay"
+                >
+                  limpar dados deste navegador
+                </button>
+                <p className="mt-1 text-[12px] text-ink-faint">
+                  apaga só a chave da OpenAI desse aparelho. não mexe nos
+                  remédios salvos.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-display text-[18px] leading-tight tracking-tight text-clay">
+                  apagar minha conta
+                </p>
+                <p className="mt-1 text-[12px] leading-relaxed text-ink-faint">
+                  apaga todos os perfis, remédios, vacinas, retornos, adesão,
+                  e desvincula o Telegram. <b>não tem volta.</b> digite{" "}
+                  <code className="tnum">APAGAR</code> pra liberar o botão.
+                </p>
+                <div className="mt-3 flex items-end gap-3">
+                  <input
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                    placeholder="APAGAR"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="flex-1 bg-transparent pb-2 text-[14px] tnum text-ink outline-none placeholder:text-ink-faint/60"
+                    style={{ borderBottom: "1px solid var(--color-edge-2)" }}
+                  />
+                  <button
+                    onClick={deleteAccount}
+                    disabled={deleteConfirm !== "APAGAR" || deleteBusy}
+                    className="rounded-full bg-clay px-4 py-2 text-[13px] font-medium text-paper hover:opacity-90 disabled:opacity-30"
+                  >
+                    {deleteBusy ? "apagando" : "apagar"}
+                  </button>
+                </div>
+                {deleteError ? (
+                  <p className="mt-2 text-[12px] text-clay">{deleteError}</p>
+                ) : null}
+              </div>
+            </div>
           </Section>
         </div>
       )}
