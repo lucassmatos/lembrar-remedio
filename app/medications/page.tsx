@@ -70,7 +70,7 @@ export default function MedicationsPage() {
       header={
         <section className="mb-10">
           <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">
-            cadastro
+            Lembretes
           </p>
           <h1 className="mt-1 font-display text-[44px] leading-[1.05] tracking-tight text-ink">
             Medicamentos
