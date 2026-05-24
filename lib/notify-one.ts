@@ -31,7 +31,7 @@ function isOneShotInput(
 const KIND_LABEL = {
   medication: { icon: "💊", noun: "Remédio" },
   vaccine: { icon: "💉", noun: "Vacina" },
-  appointment: { icon: "📅", noun: "Retorno" },
+  appointment: { icon: "📅", noun: "Consulta" },
 } as const;
 
 function profileTag(profiles: Profile[], reminder: Reminder): string {

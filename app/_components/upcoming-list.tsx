@@ -21,16 +21,22 @@ type Item = {
 
 const KIND_META = {
   vaccine: { icon: "💉", noun: "Vacina" },
-  appointment: { icon: "📅", noun: "Retorno" },
+  appointment: { icon: "📅", noun: "Consulta" },
   medication: { icon: "💊", noun: "Remédio" },
 } as const;
 
 export function UpcomingList({
   reminders,
   profiles = [],
+  hideKindTag = false,
+  emptyUpcoming = "Nada agendado por aqui.",
+  emptyHistory = "Nada no histórico ainda.",
 }: {
   reminders: Reminder[];
   profiles?: Profile[];
+  hideKindTag?: boolean;
+  emptyUpcoming?: string;
+  emptyHistory?: string;
 }) {
   const [tz, setTz] = useState("America/Sao_Paulo");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -104,9 +110,7 @@ export function UpcomingList({
 
       {list.length === 0 ? (
         <p className="py-6 text-[15px] text-ink-soft">
-          {tab === "upcoming"
-            ? "Nada agendado por aqui."
-            : "Nada no histórico ainda."}
+          {tab === "upcoming" ? emptyUpcoming : emptyHistory}
         </p>
       ) : (
         <ul className="divide-y divide-edge">
@@ -129,17 +133,26 @@ export function UpcomingList({
                 ) : (
                   <div className="grid grid-cols-[1fr_auto] items-start gap-4">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">
-                        <span aria-hidden>{meta.icon}</span>
-                        {meta.noun}
-                        {showProfile && profile ? (
-                          <>
-                            <span className="text-ink-faint/40">·</span>
+                      {hideKindTag ? (
+                        showProfile && profile ? (
+                          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">
                             <ProfileBadge profile={profile} size={14} />
-                            <span className="text-ink-faint">{profile.name}</span>
-                          </>
-                        ) : null}
-                      </div>
+                            <span>{profile.name}</span>
+                          </div>
+                        ) : null
+                      ) : (
+                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">
+                          <span aria-hidden>{meta.icon}</span>
+                          {meta.noun}
+                          {showProfile && profile ? (
+                            <>
+                              <span className="text-ink-faint/40">·</span>
+                              <ProfileBadge profile={profile} size={14} />
+                              <span className="text-ink-faint">{profile.name}</span>
+                            </>
+                          ) : null}
+                        </div>
+                      )}
                       <div className="mt-1.5 font-display text-[20px] leading-tight tracking-tight text-ink">
                         {reminder.title}
                       </div>

@@ -1,12 +1,12 @@
 import Link from "next/link";
 
-export type NavKey = "hoje" | "remedios" | "proximos" | "ajustes";
+export type NavKey = "remedios" | "consultas" | "vacinas" | "ajustes";
 
 export function Nav({ current }: { current: NavKey }) {
   const items: { key: NavKey; label: string; href: string }[] = [
-    { key: "hoje", label: "Hoje", href: "/" },
     { key: "remedios", label: "Remédios", href: "/medications" },
-    { key: "proximos", label: "Próximos", href: "/upcoming" },
+    { key: "consultas", label: "Consultas", href: "/appointments" },
+    { key: "vacinas", label: "Vacinas", href: "/vaccines" },
     { key: "ajustes", label: "Ajustes", href: "/settings" },
   ];
   return (

@@ -10,7 +10,7 @@ import type { Profile, Reminder } from "@/lib/types";
 
 const SELECTED_KEY = "lr.profile.selected.v1";
 
-export default function UpcomingPage() {
+export default function VaccinesPage() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<string>("");
@@ -22,7 +22,7 @@ export default function UpcomingPage() {
       try {
         const [r, p] = await Promise.all([getReminders(), getProfiles()]);
         if (cancelled) return;
-        setReminders(r.filter((x) => x.kind !== "medication"));
+        setReminders(r.filter((x) => x.kind === "vaccine"));
         setProfiles(p);
         setSelected((cur) => {
           if (cur && p.some((x) => x.id === cur)) return cur;
@@ -65,17 +65,17 @@ export default function UpcomingPage() {
 
   return (
     <Shell
-      current="proximos"
+      current="vacinas"
       header={
         <section className="mb-10">
           <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">
-            agenda
+            saúde
           </p>
           <h1 className="mt-1 font-display text-[44px] leading-[1.05] tracking-tight text-ink">
-            Próximos
+            Vacinas
           </h1>
           <p className="mt-3 max-w-[44ch] text-[14px] leading-relaxed text-ink-soft">
-            Vacinas e retornos. Eu lembro de marcar com antecedência, e de novo perto da data.
+            Cadastra a próxima dose. Eu lembro de marcar com antecedência e de novo perto da data.
           </p>
         </section>
       }
@@ -90,14 +90,20 @@ export default function UpcomingPage() {
 
       <section className="mb-14">
         <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
-          {activeProfile ? `Novo · ${activeProfile.name}` : "Novo"}
+          {activeProfile ? `Nova vacina · ${activeProfile.name}` : "Nova vacina"}
         </h2>
-        <OneShotForm profileId={selected} />
+        <OneShotForm profileId={selected} defaultKind="vaccine" lockKind />
       </section>
 
       {mounted ? (
         <section>
-          <UpcomingList reminders={visible} profiles={profiles} />
+          <UpcomingList
+            reminders={visible}
+            profiles={profiles}
+            hideKindTag
+            emptyUpcoming="Nenhuma vacina agendada."
+            emptyHistory="Nenhuma vacina no histórico."
+          />
         </section>
       ) : null}
     </Shell>

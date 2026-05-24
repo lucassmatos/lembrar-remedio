@@ -16,6 +16,7 @@ type Props = {
   reminder?: Reminder;
   profileId?: string;
   defaultKind?: ReminderKind;
+  lockKind?: boolean;
   onSaved?: (r: Reminder) => void;
   onCancel?: () => void;
 };
@@ -45,6 +46,7 @@ export function OneShotForm({
   reminder,
   profileId,
   defaultKind = "appointment",
+  lockKind = false,
   onSaved,
   onCancel,
 }: Props) {
@@ -83,7 +85,7 @@ export function OneShotForm({
     e.preventDefault();
     setErr(null);
     if (!title.trim()) {
-      setErr(kind === "vaccine" ? "Dá um nome pra vacina." : "Dá um nome pro retorno.");
+      setErr(kind === "vaccine" ? "Dá um nome pra vacina." : "Dá um nome pra consulta.");
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -142,7 +144,7 @@ export function OneShotForm({
 
   return (
     <form onSubmit={submit} className="space-y-7">
-      {!editing ? (
+      {!editing && !lockKind ? (
         <div>
           <label className="mb-3 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
             Tipo
@@ -156,7 +158,7 @@ export function OneShotForm({
             />
             <KindChip
               icon="📅"
-              label="Retorno"
+              label="Consulta"
               active={kind === "appointment"}
               onClick={() => changeKind("appointment")}
             />
