@@ -1,12 +1,45 @@
 export const PROFILE_COLORS = ["sage", "clay", "amber", "violet", "sky", "sand"] as const;
 export type ProfileColor = (typeof PROFILE_COLORS)[number];
 
+export type ProfileShareRole = "partner" | "caregiver";
+
+export type ProfileShareEntry = {
+  sub: string;
+  role: ProfileShareRole;
+  addedAt: number;
+};
+
+export function isPartner(e: ProfileShareEntry): boolean {
+  return e.role === "partner";
+}
+
+export function isCaregiver(e: ProfileShareEntry): boolean {
+  return e.role === "caregiver";
+}
+
+export type PartnerRecord = {
+  partnerSub: string;
+  partnerEmail?: string;
+  partnerName?: string;
+  since: number;
+};
+
+export type ProfileShareLink = {
+  ownerSub: string;
+  profileId: string;
+  role: ProfileShareRole;
+  addedAt: number;
+};
+
 export type Profile = {
   id: string;
   name: string;
   color: ProfileColor;
   isDefault?: boolean;
   createdAt: number;
+  ownerSub: string;
+  sharedWith: ProfileShareEntry[];
+  version: number;
 };
 
 export const REMINDER_KINDS = ["medication", "vaccine", "appointment"] as const;
@@ -74,7 +107,11 @@ export type DoseSlot = {
   takenAt?: number;
 };
 
-export type DayLog = Record<string, { taken: boolean; takenAt: number }>;
+export type DayLog = Record<string, {
+  taken: boolean;
+  takenAt: number;
+  takenBy?: string;
+}>;
 
 export function isMedication(
   r: Reminder,
