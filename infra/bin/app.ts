@@ -16,14 +16,7 @@ const data = new DataStack(app, "LembrarRemedioData", {
   vercelIamUserName: "lembrar-remedio-vercel",
 });
 
-const telegramBotToken =
-  process.env.TELEGRAM_BOT_TOKEN || app.node.tryGetContext("telegramBotToken");
-
-if (telegramBotToken) {
-  new ComputeStack(app, "LembrarRemedioCompute", {
-    env,
-    table: data.table,
-    telegramBotToken,
-  });
-}
-
+new ComputeStack(app, "LembrarRemedioCompute", {
+  env,
+  table: data.table,
+});

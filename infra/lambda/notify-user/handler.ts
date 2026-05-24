@@ -1,5 +1,6 @@
 import { notifyOneDose, type NotifyInput, type NotifyResult } from "../../../lib/notify-one";
 import { computeNextDose, defaultDeps } from "../../../lib/next-dose";
+import { ensureTelegramToken } from "../../../lib/telegram";
 import { updateUserSchedule } from "../schedule-sync/user-schedule";
 
 type Event = { sub?: string };
@@ -14,6 +15,8 @@ export async function handler(event: Event): Promise<{
     throw new Error("missing sub");
   }
   const { sub } = event;
+
+  await ensureTelegramToken();
 
   const { due } = await computeNextDose(sub, defaultDeps);
 

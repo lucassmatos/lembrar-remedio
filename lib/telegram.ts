@@ -1,8 +1,43 @@
 const API = "https://api.telegram.org";
 
+let tokenLoadPromise: Promise<void> | null = null;
+
+/**
+ * Lazy-loads TELEGRAM_BOT_TOKEN from AWS Secrets Manager on first call when
+ * the env var is missing but TELEGRAM_BOT_TOKEN_SECRET_ARN is set (Lambda path).
+ * On Vercel the env var is set directly, so this returns immediately without
+ * touching the Secrets Manager SDK (kept out of the serverless bundle).
+ */
+export async function ensureTelegramToken(): Promise<void> {
+  if (process.env.TELEGRAM_BOT_TOKEN) return;
+  const arn = process.env.TELEGRAM_BOT_TOKEN_SECRET_ARN;
+  if (!arn) {
+    throw new Error(
+      "TELEGRAM_BOT_TOKEN não configurado (nem var direta nem TELEGRAM_BOT_TOKEN_SECRET_ARN)",
+    );
+  }
+  if (!tokenLoadPromise) {
+    tokenLoadPromise = (async () => {
+      const region =
+        process.env.AWS_REGION || process.env.LR_AWS_REGION || "us-east-1";
+      const { SecretsManagerClient, GetSecretValueCommand } = await import(
+        "@aws-sdk/client-secrets-manager"
+      );
+      const client = new SecretsManagerClient({ region });
+      const res = await client.send(new GetSecretValueCommand({ SecretId: arn }));
+      const value = res.SecretString;
+      if (!value) {
+        throw new Error("Secret TELEGRAM_BOT_TOKEN vazio");
+      }
+      process.env.TELEGRAM_BOT_TOKEN = value.trim();
+    })();
+  }
+  await tokenLoadPromise;
+}
+
 function token(): string {
   const t = process.env.TELEGRAM_BOT_TOKEN;
-  if (!t) throw new Error("TELEGRAM_BOT_TOKEN não configurado");
+  if (!t) throw new Error("TELEGRAM_BOT_TOKEN não carregado — chame ensureTelegramToken()");
   return t;
 }
 

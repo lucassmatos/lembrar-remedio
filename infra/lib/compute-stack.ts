@@ -5,16 +5,17 @@ import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as sources from "aws-cdk-lib/aws-lambda-event-sources";
+import * as sm from "aws-cdk-lib/aws-secretsmanager";
 import * as path from "path";
 
 export interface ComputeStackProps extends cdk.StackProps {
   table: dynamodb.Table;
-  telegramBotToken: string;
 }
 
 const NOTIFY_USER_FN_NAME = "lembrar-remedio-notify-user";
 const SYNC_FN_NAME = "lembrar-remedio-schedule-sync";
 const SCHEDULER_ROLE_NAME = "lembrar-remedio-scheduler-invoke";
+const TELEGRAM_TOKEN_SECRET_NAME = "lembrar-remedio/telegram-bot-token";
 
 export class ComputeStack extends cdk.Stack {
   public readonly notifyUserFn: nodejs.NodejsFunction;
@@ -40,6 +41,14 @@ export class ComputeStack extends cdk.Stack {
     const notifyUserFnArn = `arn:aws:lambda:${this.region}:${this.account}:function:${NOTIFY_USER_FN_NAME}`;
     const schedulerRoleArn = `arn:aws:iam::${this.account}:role/${SCHEDULER_ROLE_NAME}`;
 
+    // Telegram bot token lives in Secrets Manager (created out-of-band).
+    // Lambda fetches at cold start via ensureTelegramToken() in lib/telegram.ts.
+    const telegramTokenSecret = sm.Secret.fromSecretNameV2(
+      this,
+      "TelegramBotTokenSecret",
+      TELEGRAM_TOKEN_SECRET_NAME,
+    );
+
     // notify-user Lambda — chamado pelo schedule do usuário, processa todas as
     // doses devidas naquele momento e reagenda pro próximo nextAt.
     this.notifyUserFn = new nodejs.NodejsFunction(this, "NotifyUserFn", {
@@ -53,7 +62,7 @@ export class ComputeStack extends cdk.Stack {
       memorySize: 256,
       environment: {
         DDB_TABLE_NAME: props.table.tableName,
-        TELEGRAM_BOT_TOKEN: props.telegramBotToken,
+        TELEGRAM_BOT_TOKEN_SECRET_ARN: telegramTokenSecret.secretArn,
         NOTIFY_USER_LAMBDA_ARN: notifyUserFnArn,
         SCHEDULER_ROLE_ARN: schedulerRoleArn,
       },
@@ -61,6 +70,7 @@ export class ComputeStack extends cdk.Stack {
       logRetention: 14 as never,
     });
     props.table.grantReadWriteData(this.notifyUserFn);
+    telegramTokenSecret.grantRead(this.notifyUserFn);
 
     // notify-user reagenda a si própria.
     this.notifyUserFn.addToRolePolicy(
