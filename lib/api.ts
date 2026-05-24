@@ -191,3 +191,75 @@ export function onChange(
   window.addEventListener(EVT, listener);
   return () => window.removeEventListener(EVT, listener);
 }
+
+// ── Sharing ───────────────────────────────────────────────────────────────────
+
+export type SharingPartner = {
+  partnerSub: string;
+  partnerEmail?: string;
+  partnerName?: string;
+};
+
+export type SharingCaregiver = {
+  sub: string;
+  profileId: string;
+  profileName: string;
+  addedAt: number;
+};
+
+export type SharingMemberOf = {
+  ownerSub: string;
+  profileId: string;
+  profileName: string;
+  role: string;
+};
+
+export type SharingData = {
+  partner: SharingPartner | null;
+  caregivers: SharingCaregiver[];
+  memberOf: SharingMemberOf[];
+};
+
+export type InviteResult = {
+  token: string;
+  url: string;
+  expiresInSec: number;
+};
+
+export async function getSharing(): Promise<SharingData> {
+  return jsonFetch<SharingData>("/api/sharing");
+}
+
+export async function createInvite(
+  body:
+    | { mode: "partner" }
+    | { mode: "caregiver"; profileIds: string[]; inviteeEmail: string },
+): Promise<InviteResult> {
+  return jsonFetch<InviteResult>("/api/sharing/invite", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function acceptInvite(token: string): Promise<{ ok: true }> {
+  const result = await jsonFetch<{ ok: true }>("/api/sharing/accept", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+  emit("profiles");
+  return result;
+}
+
+export async function removeShare(
+  body:
+    | { kind: "caregiver"; profileId: string; memberSub: string }
+    | { kind: "partner" }
+    | { kind: "leave"; ownerSub: string; profileId: string },
+): Promise<{ ok: true }> {
+  const result = await jsonFetch<{ ok: true }>("/api/sharing", {
+    method: "DELETE",
+    body: JSON.stringify(body),
+  });
+  emit("profiles");
+  return result;
+}

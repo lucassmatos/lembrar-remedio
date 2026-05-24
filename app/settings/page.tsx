@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { Shell } from "../_components/shell";
 import { TelegramPanel } from "../_components/telegram-panel";
 import { ProfilesPanel } from "../_components/profiles-panel";
+import { SharingPanel } from "../_components/sharing-panel";
 import { getConfig, setConfig as apiSetConfig } from "@/lib/api";
 import {
   DEFAULT_OPENAI_MODEL,
@@ -132,6 +133,10 @@ export default function SettingsPage() {
 
           <Section label="pessoas">
             <ProfilesPanel />
+          </Section>
+
+          <Section label="compartilhar">
+            <SharingPanel />
           </Section>
 
           <Section label="telegram">
