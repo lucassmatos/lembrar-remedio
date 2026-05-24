@@ -11,10 +11,10 @@ import {
   deleteActivity,
   findOpenNap,
   listOpenNaps,
-  putReminder,
+  putReminderForProfile,
   putProfile,
   deleteProfileCascade,
-  listReminders,
+  listRemindersForProfile,
 } from "./ddb";
 import { _resetDevStore } from "./dev-store";
 import { nowInTz, addDays } from "./schedule";
@@ -128,8 +128,8 @@ describe("listOpenNaps", () => {
 
 describe("deleteProfileCascade inclui activities", () => {
   it("apaga activities do perfil mas preserva as de outro perfil", async () => {
-    await putProfile(SUB, { id: "p1", name: "Bebê", color: "sage", createdAt: 1 });
-    await putProfile(SUB, { id: "p2", name: "Outro", color: "clay", createdAt: 1 });
+    await putProfile(SUB, { id: "p1", name: "Bebê", color: "sage", createdAt: 1, ownerSub: SUB, sharedWith: [], version: 1 });
+    await putProfile(SUB, { id: "p2", name: "Outro", color: "clay", createdAt: 1, ownerSub: SUB, sharedWith: [], version: 1 });
     await putActivity(SUB, nap({ id: "keep", profileId: "p2", date: "2026-05-20" }));
     await putActivity(SUB, feed({ id: "drop", profileId: "p1", date: "2026-05-20" }));
 
@@ -147,8 +147,8 @@ describe("deleteProfileCascade inclui activities", () => {
       profileId: "p1",
       createdAt: 1,
     };
-    await putReminder(SUB, rem);
+    await putReminderForProfile(rem);
     await deleteProfileCascade(SUB, "p1");
-    expect(await listReminders(SUB)).toEqual([]);
+    expect(await listRemindersForProfile("p1")).toEqual([]);
   });
 });

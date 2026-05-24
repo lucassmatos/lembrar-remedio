@@ -365,7 +365,3 @@ export function _resetDevStore(): void {
 }
 
 export const DEV_USER_SUB = "dev-user";
-
-export function _resetDevStore(): void {
-  store.clear();
-}
