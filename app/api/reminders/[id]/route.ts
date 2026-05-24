@@ -40,13 +40,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // Schedule type must match existing kind (kind itself isn't editable here).
     if (existing.kind === "medication" && body.schedule.type !== "daily-interval") {
       return NextResponse.json(
-        { error: "schedule de remédio precisa ser daily-interval" },
+        { error: "schedule de medicamento precisa ser daily-interval" },
         { status: 400 },
       );
     }
     if (existing.kind !== "medication" && body.schedule.type !== "one-shot") {
       return NextResponse.json(
-        { error: "schedule de vacina/retorno precisa ser one-shot" },
+        { error: "schedule de vacina/consulta precisa ser one-shot" },
         { status: 400 },
       );
     }

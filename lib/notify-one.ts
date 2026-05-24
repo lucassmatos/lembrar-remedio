@@ -29,7 +29,7 @@ function isOneShotInput(
 }
 
 const KIND_LABEL = {
-  medication: { icon: "💊", noun: "Remédio" },
+  medication: { icon: "💊", noun: "Medicamento" },
   vaccine: { icon: "💉", noun: "Vacina" },
   appointment: { icon: "📅", noun: "Consulta" },
 } as const;

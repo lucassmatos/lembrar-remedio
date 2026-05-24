@@ -41,7 +41,7 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    if (!name.trim()) return setErr("Dá um nome pro remédio.");
+    if (!name.trim()) return setErr("Dá um nome pro medicamento.");
     if (!intervalHours || Number(intervalHours) <= 0)
       return setErr("Intervalo precisa ser maior que zero.");
     if (typeof durationDays === "number" && durationDays <= 0)

@@ -1,22 +1,22 @@
 # lembrar-remedio
 
-App pra controlar horários de remédio, vacinas e retornos médicos — pra você
+App pra controlar horários de medicamento, vacinas e retornos médicos — pra você
 e pra quem você cuida (filho, avô, etc). Marca quando tomou, recebe notificação
 no horário, escaneia receita com foto.
 
 ## O que tem
 
-- **Remédios** com intervalo diário (8/8h, 12/12h, horários específicos,
+- **Medicamentos** com intervalo diário (8/8h, 12/12h, horários específicos,
   duração do tratamento).
 - **Vacinas e retornos** com data marcada e avisos antes (30/15/7 dias) +
   cobrança depois ("já agendou?").
-- **Múltiplos perfis** — cadastra remédios pra você, esposa, filho, mãe.
+- **Múltiplos perfis** — cadastra medicamentos pra você, esposa, filho, mãe.
 - **Notificação por Telegram** quando chega a hora. Botão pra marcar tomado
   direto no chat.
 - **Notificação local** (Web Notifications) enquanto o app está aberto ou
   instalado como PWA.
 - **Escanear receita** com a câmera — OpenAI lê a posologia e cadastra os
-  remédios (você usa sua própria chave).
+  medicamentos (você usa sua própria chave).
 
 ## Stack
 
@@ -26,7 +26,7 @@ EventBridge Scheduler · Tailwind v4 · PWA + Service Worker.
 ## Login
 
 Login com Google obrigatório. A gente guarda `email`, `nome`, `sub` do Google,
-mais o que você cadastra (remédios, horários, perfis, log de adesão, chat do
+mais o que você cadastra (medicamentos, horários, perfis, log de adesão, chat do
 Telegram se você parear, timezone).
 
 Tudo fica em DynamoDB na AWS (us-east-1). Logs de adesão expiram em 60 dias
@@ -94,11 +94,11 @@ Variáveis CDK esperadas no `cdk.json` ou ambiente. Veja `infra/bin/app.ts`.
 app/
   page.tsx                    hoje (doses do dia)
   upcoming/page.tsx           vacinas + retornos
-  medications/page.tsx        cadastro de remédios
+  medications/page.tsx        cadastro de medicamentos
   settings/page.tsx           perfil, timezone, Telegram, receita
   login/page.tsx              Google sign-in
   api/
-    reminders/                CRUD de remédio/vacina/retorno
+    reminders/                CRUD de medicamento/vacina/retorno
     profiles/                 CRUD de perfis
     config/                   timezone, chatId
     log/                      marcar dose tomada/pulada

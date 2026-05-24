@@ -22,7 +22,7 @@ export default async function LoginPage({
           style={{ background: "var(--color-clay)" }}
         />
         <span className="font-display text-[22px] leading-none tracking-tight text-ink">
-          remédio
+          medicamento
         </span>
       </div>
 
@@ -45,7 +45,7 @@ export default async function LoginPage({
 
       <p className="mt-8 text-[12.5px] leading-relaxed text-ink-faint">
         Ao entrar você concorda em deixar a gente salvar uma lista dos seus
-        remédios e dos seus horários. É só isso.
+        medicamentos e dos seus horários. É só isso.
       </p>
     </div>
   );

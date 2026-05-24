@@ -17,8 +17,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Remédio",
-  description: "Lembrete simples dos seus horários de remédio",
+  title: "Medicamento",
+  description: "Lembrete simples dos seus horários de medicamento",
   manifest: "/manifest.webmanifest",
 };
 

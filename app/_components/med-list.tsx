@@ -39,7 +39,7 @@ export function MedList({
   if (reminders.length === 0) {
     return (
       <p className="py-6 text-[15px] text-ink-soft">
-        Você ainda não cadastrou nenhum remédio.
+        Você ainda não cadastrou nenhum medicamento.
       </p>
     );
   }

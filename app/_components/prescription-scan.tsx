@@ -47,7 +47,7 @@ export function PrescriptionScan({ profileId }: { profileId?: string }) {
       );
       if (result.medications.length === 0) {
         setStatus("error");
-        setErr("Não consegui identificar remédios nessa foto.");
+        setErr("Não consegui identificar medicamentos nessa foto.");
         if (result.warnings?.length) setWarnings(result.warnings);
         return;
       }
@@ -207,7 +207,7 @@ export function PrescriptionScan({ profileId }: { profileId?: string }) {
 
       {status === "done" ? (
         <p className="enter text-[14px]" style={{ color: "var(--color-sage)" }}>
-          remédios adicionados.
+          medicamentos adicionados.
         </p>
       ) : null}
 
@@ -224,8 +224,8 @@ export function PrescriptionScan({ profileId }: { profileId?: string }) {
             ) : null}
             <p className="text-[13px] leading-relaxed text-ink-soft">
               {parsed.length === 1
-                ? "1 remédio detectado. Ajuste o que precisar antes de salvar."
-                : `${parsed.length} remédios detectados. Ajuste o que precisar antes de salvar.`}
+                ? "1 medicamento detectado. Ajuste o que precisar antes de salvar."
+                : `${parsed.length} medicamentos detectados. Ajuste o que precisar antes de salvar.`}
             </p>
           </div>
 

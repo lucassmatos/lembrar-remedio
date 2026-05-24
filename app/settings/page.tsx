@@ -67,7 +67,7 @@ export default function SettingsPage() {
   }
 
   function clearLocal() {
-    if (!confirm("Apaga a chave da OpenAI deste navegador (não mexe nos remédios salvos)?")) return;
+    if (!confirm("Apaga a chave da OpenAI deste navegador (não mexe nos medicamentos salvos)?")) return;
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
       if (k && k.startsWith("lr.")) localStorage.removeItem(k);
@@ -279,7 +279,7 @@ export default function SettingsPage() {
               baixar tudo em JSON
             </button>
             <p className="mt-2 text-[12px] text-ink-faint">
-              perfis, remédios, vacinas, retornos e adesão dos últimos 60 dias.
+              perfis, medicamentos, vacinas, retornos e adesão dos últimos 60 dias.
             </p>
           </Section>
 
@@ -294,7 +294,7 @@ export default function SettingsPage() {
                 </button>
                 <p className="mt-1 text-[12px] text-ink-faint">
                   apaga só a chave da OpenAI desse aparelho. não mexe nos
-                  remédios salvos.
+                  medicamentos salvos.
                 </p>
               </div>
 
@@ -303,7 +303,7 @@ export default function SettingsPage() {
                   apagar minha conta
                 </p>
                 <p className="mt-1 text-[12px] leading-relaxed text-ink-faint">
-                  apaga todos os perfis, remédios, vacinas, retornos, adesão,
+                  apaga todos os perfis, medicamentos, vacinas, retornos, adesão,
                   e desvincula o Telegram. <b>não tem volta.</b> digite{" "}
                   <code className="tnum">APAGAR</code> pra liberar o botão.
                 </p>

@@ -18,8 +18,8 @@ export type ParsedPrescription = {
 
 const SYSTEM_PROMPT = `Você lê fotos de receitas médicas brasileiras e converte a posologia em horários concretos. Português do Brasil.
 
-Para cada remédio identificado retorne:
-- name: nome do remédio como aparece na receita (princípio ativo ou marca).
+Para cada medicamento identificado retorne:
+- name: nome do medicamento como aparece na receita (princípio ativo ou marca).
 - dosage: quantidade por dose quando explícita ("1 comprimido", "20mg", "10 gotas", "1/2 comprimido").
 - times: array de strings "HH:MM" com TODOS os horários do dia. Você decide horários concretos a partir das instruções verbais.
 - intervalHours: intervalo médio em horas entre doses. Se 1x/dia use 24. Se times for não uniforme, use a melhor aproximação (ex.: 3x ao dia = 8).
@@ -56,7 +56,7 @@ Mapeamento de frequência (escolha times[] e intervalHours juntos):
 Regras importantes:
 - Sempre devolva times[] preenchido com ao menos um horário.
 - Times no formato HH:MM 24h, dois dígitos em cada parte.
-- Não invente remédios. Se não houver nenhum, retorne { "medications": [] }.
+- Não invente medicamentos. Se não houver nenhum, retorne { "medications": [] }.
 - Se a foto estiver ilegível ou cortar parte importante, adicione strings em "warnings" explicando.
 - Não use markdown, prosa nem comentários. Apenas JSON válido.
 
@@ -98,7 +98,7 @@ export async function analyzePrescription(
           content: [
             {
               type: "text",
-              text: "Leia esta receita e devolva o JSON com a posologia de cada remédio.",
+              text: "Leia esta receita e devolva o JSON com a posologia de cada medicamento.",
             },
             { type: "image_url", image_url: { url: imageDataUrl } },
           ],

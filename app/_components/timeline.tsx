@@ -1,0 +1,437 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  daysBetween,
+  formatBrDate,
+  oneShotOccurrences,
+  slotKey,
+  todaySlots,
+} from "@/lib/schedule";
+import {
+  getLog,
+  onChange,
+  setLogEntry,
+  updateReminder,
+} from "@/lib/api";
+import type {
+  DayLog,
+  DoseSlot,
+  OneShotSchedule,
+  Profile,
+  Reminder,
+} from "@/lib/types";
+import { ProfileBadge } from "./profile-badge";
+
+type Props = {
+  date: string;
+  tz: string;
+  reminders: Reminder[];
+  profiles?: Profile[];
+  nowMinutes: number;
+};
+
+const NEAR_WINDOW = 30;
+const HORIZON_DAYS = 90;
+
+const KIND_META = {
+  medication: { icon: "💊", noun: "Medicamento" },
+  vaccine: { icon: "💉", noun: "Vacina" },
+  appointment: { icon: "📅", noun: "Consulta" },
+} as const;
+
+type OneShotEntry = {
+  reminder: Reminder;
+  schedule: OneShotSchedule;
+  fireDate: string;
+  fireTime: string;
+  lead: number;
+  daysAway: number;
+};
+
+export function Timeline({ date, tz, reminders, profiles = [], nowMinutes }: Props) {
+  const profileById = useMemo(
+    () => new Map(profiles.map((p) => [p.id, p])),
+    [profiles],
+  );
+  const showProfile = profiles.length >= 2;
+  const [log, setLog] = useState<DayLog>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchLog() {
+      try {
+        const next = await getLog(date);
+        if (!cancelled) setLog(next);
+      } catch {
+        // ignore
+      }
+    }
+    fetchLog();
+    const off = onChange("log", fetchLog);
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, [date]);
+
+  const meds = useMemo(
+    () => reminders.filter((r) => r.kind === "medication"),
+    [reminders],
+  );
+
+  const todaySlotItems = useMemo(
+    () => todaySlots(meds, log, { date, tz }),
+    [meds, log, date, tz],
+  );
+
+  const oneShotItems = useMemo<OneShotEntry[]>(() => {
+    const out: OneShotEntry[] = [];
+    for (const r of reminders) {
+      if (r.schedule.type !== "one-shot") continue;
+      if (r.status === "done") continue;
+      for (const occ of oneShotOccurrences(r)) {
+        const days = daysBetween(date, occ.date);
+        if (days < 0) continue;
+        if (days > HORIZON_DAYS) continue;
+        out.push({
+          reminder: r,
+          schedule: r.schedule,
+          fireDate: occ.date,
+          fireTime: occ.time,
+          lead: occ.lead,
+          daysAway: days,
+        });
+      }
+    }
+    out.sort((a, b) => a.daysAway - b.daysAway || a.fireTime.localeCompare(b.fireTime));
+    return out;
+  }, [reminders, date]);
+
+  const todayOneShots = oneShotItems.filter((o) => o.daysAway === 0);
+  const upcomingOneShots = oneShotItems.filter((o) => o.daysAway > 0);
+
+  async function toggleSlot(slot: DoseSlot) {
+    const key = slotKey(slot.reminderId, slot.time);
+    const next = !slot.taken;
+    setLog((prev) => {
+      const copy = { ...prev };
+      if (next) copy[key] = { taken: true, takenAt: Date.now() };
+      else delete copy[key];
+      return copy;
+    });
+    try {
+      const updated = await setLogEntry(date, key, next);
+      setLog(updated);
+    } catch {
+      const fresh = await getLog(date).catch(() => ({}));
+      setLog(fresh);
+    }
+  }
+
+  async function setStatus(id: string, status: "unscheduled" | "scheduled" | "done") {
+    await updateReminder(id, { status });
+  }
+
+  const todayEmpty = todaySlotItems.length === 0 && todayOneShots.length === 0;
+
+  return (
+    <div>
+      <section className="mb-12">
+        <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
+          Hoje
+        </h2>
+        {todayEmpty ? (
+          <p className="py-2 text-[15px] text-ink-soft">Nada pra hoje.</p>
+        ) : (
+          <ol className="relative divide-y divide-edge">
+            {todaySlotItems.map((slot, i) => (
+              <DoseRow
+                key={slotKey(slot.reminderId, slot.time) + "-" + i}
+                slot={slot}
+                profile={showProfile ? profileById.get(slot.reminder.profileId) : undefined}
+                nowMinutes={nowMinutes}
+                onToggle={() => toggleSlot(slot)}
+              />
+            ))}
+            {todayOneShots.map((item) => (
+              <OneShotRow
+                key={`${item.reminder.id}-${item.fireDate}-${item.lead}`}
+                item={item}
+                profile={showProfile ? profileById.get(item.reminder.profileId) : undefined}
+                onAgendei={() => setStatus(item.reminder.id, "scheduled")}
+                onFiz={() => setStatus(item.reminder.id, "done")}
+              />
+            ))}
+          </ol>
+        )}
+      </section>
+
+      {upcomingOneShots.length > 0 ? (
+        <section>
+          <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
+            Próximos
+          </h2>
+          <ol className="divide-y divide-edge">
+            {upcomingOneShots.map((item) => (
+              <OneShotRow
+                key={`${item.reminder.id}-${item.fireDate}-${item.lead}`}
+                item={item}
+                profile={showProfile ? profileById.get(item.reminder.profileId) : undefined}
+                onAgendei={() => setStatus(item.reminder.id, "scheduled")}
+                onFiz={() => setStatus(item.reminder.id, "done")}
+              />
+            ))}
+          </ol>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function DoseRow({
+  slot,
+  profile,
+  nowMinutes,
+  onToggle,
+}: {
+  slot: DoseSlot;
+  profile?: Profile;
+  nowMinutes: number;
+  onToggle: () => void;
+}) {
+  const delta = slot.minutes - nowMinutes;
+  const isNow = !slot.taken && Math.abs(delta) <= NEAR_WINDOW;
+  const isMissed = !slot.taken && delta < -NEAR_WINDOW;
+  const isAhead = !slot.taken && delta > NEAR_WINDOW;
+  const state = slot.taken ? "done" : isMissed ? "missed" : isNow ? "now" : "ahead";
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="group grid w-full grid-cols-[64px_1fr_auto] items-center gap-4 py-5 text-left"
+      >
+        <TimeChip time={slot.time} state={state} />
+        <div className="min-w-0">
+          <div
+            className={
+              "flex items-center gap-2 font-display text-[19px] leading-tight tracking-tight transition-all " +
+              (slot.taken ? "text-ink-faint line-through decoration-edge-2" : "text-ink")
+            }
+          >
+            <span aria-hidden className="text-[15px] leading-none">💊</span>
+            {profile ? <ProfileBadge profile={profile} size={20} /> : null}
+            <span className="min-w-0 truncate">{slot.reminder.title}</span>
+          </div>
+          <div className="mt-1 text-[13px] tnum text-ink-faint">
+            {slot.reminder.subtitle
+              ? slot.reminder.subtitle
+              : slot.reminder.schedule.type === "daily-interval"
+                ? `a cada ${slot.reminder.schedule.intervalHours}h`
+                : ""}
+            {slot.taken && slot.takenAt ? (
+              <>
+                <span className="mx-1.5 text-ink-faint/60">·</span>
+                tomado às {fmtTakenAt(slot.takenAt)}
+              </>
+            ) : null}
+          </div>
+        </div>
+        <Indicator state={isAhead ? "ahead" : isNow ? "now" : isMissed ? "missed" : "done"} />
+      </button>
+    </li>
+  );
+}
+
+function OneShotRow({
+  item,
+  profile,
+  onAgendei,
+  onFiz,
+}: {
+  item: OneShotEntry;
+  profile?: Profile;
+  onAgendei: () => void;
+  onFiz: () => void;
+}) {
+  const meta = KIND_META[item.reminder.kind] ?? KIND_META.appointment;
+  const status = item.reminder.status ?? "unscheduled";
+  const targetDate = item.schedule.date;
+  const targetDays = daysBetween(item.fireDate, targetDate);
+  const isToday = item.daysAway === 0;
+
+  return (
+    <li>
+      <div className="grid grid-cols-[64px_1fr_auto] items-center gap-4 py-5">
+        <DateChip fireDate={item.fireDate} daysAway={item.daysAway} />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 font-display text-[19px] leading-tight tracking-tight text-ink">
+            <span aria-hidden className="text-[15px] leading-none">{meta.icon}</span>
+            {profile ? <ProfileBadge profile={profile} size={20} /> : null}
+            <span className="min-w-0 truncate">{item.reminder.title}</span>
+          </div>
+          <div className="mt-1 text-[13px] text-ink-faint">
+            {item.reminder.subtitle ? (
+              <>
+                {item.reminder.subtitle}
+                <span className="mx-1.5 text-ink-faint/60">·</span>
+              </>
+            ) : null}
+            {leadCopy(item.lead, targetDate, targetDays, status, isToday)}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-3 text-[12px]">
+          {status === "unscheduled" ? (
+            <button
+              type="button"
+              onClick={onAgendei}
+              className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:text-ink"
+              style={{ border: "1px solid var(--color-edge-2)" }}
+            >
+              já agendei
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onFiz}
+              className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:text-ink"
+              style={{ border: "1px solid var(--color-edge-2)" }}
+            >
+              já fiz
+            </button>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function leadCopy(
+  lead: number,
+  targetDate: string,
+  targetDays: number,
+  status: "unscheduled" | "scheduled" | "done",
+  isToday: boolean,
+): string {
+  if (lead === 0) {
+    return isToday ? "é hoje" : `em ${formatBrDate(targetDate)}`;
+  }
+  if (lead === 1) {
+    return status === "scheduled" ? "amanhã" : `marcar pra ${formatBrDate(targetDate)}`;
+  }
+  const targetCopy = formatBrDate(targetDate);
+  if (status === "unscheduled") {
+    return targetDays > 0
+      ? `daqui ${targetDays} dias · marcar`
+      : `marcar pra ${targetCopy}`;
+  }
+  return targetDays > 0 ? `daqui ${targetDays} dias` : targetCopy;
+}
+
+function TimeChip({
+  time,
+  state,
+}: {
+  time: string;
+  state: "done" | "missed" | "now" | "ahead";
+}) {
+  const color =
+    state === "done"
+      ? "text-ink-faint"
+      : state === "missed"
+        ? "text-clay"
+        : state === "now"
+          ? "text-ink"
+          : "text-ink-soft";
+  return (
+    <div className={"tnum text-[26px] leading-none tracking-tight transition-colors " + color}>
+      {time}
+    </div>
+  );
+}
+
+function DateChip({ fireDate, daysAway }: { fireDate: string; daysAway: number }) {
+  const [, m, d] = fireDate.split("-");
+  if (daysAway === 0) {
+    return (
+      <div className="text-[11px] uppercase tracking-[0.16em] text-amber">hoje</div>
+    );
+  }
+  if (daysAway === 1) {
+    return (
+      <div className="text-[11px] uppercase tracking-[0.16em] text-ink-soft">
+        amanhã
+      </div>
+    );
+  }
+  return (
+    <div className="tnum text-[15px] tracking-tight text-ink-soft">
+      {d}/{m}
+      <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-ink-faint">
+        em {daysAway}d
+      </div>
+    </div>
+  );
+}
+
+function Indicator({ state }: { state: "done" | "missed" | "now" | "ahead" }) {
+  if (state === "done") {
+    return (
+      <span
+        aria-label="tomado"
+        className="grid size-7 place-items-center rounded-full"
+        style={{ background: "var(--color-sage-soft)", color: "var(--color-sage)" }}
+      >
+        <CheckIcon />
+      </span>
+    );
+  }
+  if (state === "now") {
+    return (
+      <span
+        aria-label="agora"
+        className="pulse-amber grid size-7 place-items-center rounded-full"
+        style={{ background: "var(--color-amber-soft)" }}
+      >
+        <span className="block size-2 rounded-full" style={{ background: "var(--color-amber)" }} />
+      </span>
+    );
+  }
+  if (state === "missed") {
+    return (
+      <span
+        aria-label="atrasado"
+        className="grid size-7 place-items-center rounded-full"
+        style={{
+          background: "var(--color-clay-soft)",
+          color: "var(--color-clay)",
+          boxShadow: "inset 0 0 0 1px color-mix(in oklab, var(--color-clay) 25%, transparent)",
+        }}
+      >
+        <span className="block size-1.5 rounded-full" style={{ background: "var(--color-clay)" }} />
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-label="pendente"
+      className="block size-7 rounded-full transition-colors group-hover:[box-shadow:inset_0_0_0_1px_var(--color-ink-faint)]"
+      style={{ boxShadow: "inset 0 0 0 1px var(--color-edge-2)" }}
+    />
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path d="M2.5 7.5L5.5 10.5L11.5 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function fmtTakenAt(ts: number): string {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}

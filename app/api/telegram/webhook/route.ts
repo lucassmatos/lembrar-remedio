@@ -94,7 +94,7 @@ async function handleMessage(msg: NonNullable<Update["message"]>) {
         chatId,
         text:
           `<b>Pronto.</b>\nVinculado à conta <code>${escapeHtml(cfg.email ?? sub)}</code>. ` +
-          `Vou te avisar na hora de cada remédio. Toque em "✓ Tomei" pra marcar.`,
+          `Vou te avisar na hora de cada medicamento. Toque em "✓ Tomei" pra marcar.`,
       });
     } else {
       const existing = await getChatOwner(chatId);

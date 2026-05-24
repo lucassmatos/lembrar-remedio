@@ -78,7 +78,7 @@ export function ProfilesPanel() {
   async function remove(p: Profile) {
     if (p.isDefault) return;
     if (profiles.length <= 1) return;
-    if (!confirm(`Apagar ${p.name} e TODOS os remédios dela?`)) return;
+    if (!confirm(`Apagar ${p.name} e TODOS os medicamentos dela?`)) return;
     setBusy(true);
     setErr(null);
     try {

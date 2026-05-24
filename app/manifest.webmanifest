@@ -1,6 +1,6 @@
 {
-  "name": "Remédio",
-  "short_name": "Remédio",
+  "name": "Medicamento",
+  "short_name": "Medicamento",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f6f3ec",

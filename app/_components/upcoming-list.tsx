@@ -22,7 +22,7 @@ type Item = {
 const KIND_META = {
   vaccine: { icon: "💉", noun: "Vacina" },
   appointment: { icon: "📅", noun: "Consulta" },
-  medication: { icon: "💊", noun: "Remédio" },
+  medication: { icon: "💊", noun: "Medicamento" },
 } as const;
 
 export function UpcomingList({
