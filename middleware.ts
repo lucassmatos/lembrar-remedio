@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import { buildLoginRedirect } from "@/lib/login-redirect";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -27,9 +28,7 @@ export default DEV_LOCAL
       }
 
       if (!req.auth) {
-        const url = new URL("/login", nextUrl);
-        if (path !== "/") url.searchParams.set("from", path);
-        return NextResponse.redirect(url);
+        return NextResponse.redirect(buildLoginRedirect(nextUrl));
       }
 
       return NextResponse.next();

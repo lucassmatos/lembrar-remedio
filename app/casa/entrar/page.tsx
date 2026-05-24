@@ -15,11 +15,14 @@ export default async function EntrarPage({
     return <ErrorPage message="Convite ausente." />;
   }
 
-  // 2. Not logged in — redirect to sign in with callbackUrl
+  // 2. Not logged in — redirect to /login preserving the full invite URL
+  // (path + token) in `from`, matching the middleware/login contract. The bare
+  // pathname is not enough: without the token the invitee returns to an empty
+  // /casa/entrar after signup.
   const session = await auth();
   if (!session?.user?.id) {
-    const callbackUrl = encodeURIComponent(`/casa/entrar?token=${token}`);
-    redirect(`/api/auth/signin?callbackUrl=${callbackUrl}`);
+    const from = encodeURIComponent(`/casa/entrar?token=${token}`);
+    redirect(`/login?from=${from}`);
   }
 
   // 3. Peek token without consuming it
