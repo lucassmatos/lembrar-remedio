@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteReminder, getReminder, putReminder } from "@/lib/ddb";
+import {
+  deleteReminderForProfile,
+  putReminderForProfile,
+} from "@/lib/ddb";
 import { requireSession } from "@/lib/session";
+import {
+  requireProfileAccess,
+  findReminder,
+  mapAccessError,
+} from "@/lib/sharing";
 import type { Reminder } from "@/lib/types";
 import { ReminderPatchSchema, parseBody } from "@/lib/validation";
 
@@ -11,9 +19,17 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const s = await requireSession();
   if (!s.ok) return s.response;
   const { id } = await ctx.params;
-  const existing = await getReminder(s.sub, id);
-  if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
-  await deleteReminder(s.sub, id);
+
+  const found = await findReminder(s.sub, id);
+  if (!found) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  try {
+    await requireProfileAccess(s.sub, found.profileId, "editor");
+  } catch (e) {
+    return mapAccessError(e);
+  }
+
+  await deleteReminderForProfile(found.profileId, id);
   return NextResponse.json({ ok: true });
 }
 
@@ -21,11 +37,30 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const s = await requireSession();
   if (!s.ok) return s.response;
   const { id } = await ctx.params;
-  const existing = await getReminder(s.sub, id);
-  if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const found = await findReminder(s.sub, id);
+  if (!found) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  try {
+    await requireProfileAccess(s.sub, found.profileId, "editor");
+  } catch (e) {
+    return mapAccessError(e);
+  }
+
   const parsed = await parseBody(req, ReminderPatchSchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
+
+  const existing = found.reminder;
+
+  // If profileId is being changed, check access on the new profile too.
+  if (body.profileId !== undefined && body.profileId !== found.profileId) {
+    try {
+      await requireProfileAccess(s.sub, body.profileId, "editor");
+    } catch (e) {
+      return mapAccessError(e);
+    }
+  }
 
   const updated: Reminder = { ...existing };
   if (body.title !== undefined) updated.title = body.title.trim();
@@ -57,7 +92,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (body.postLeadDays !== undefined) updated.postLeadDays = sortLeads(body.postLeadDays);
     if (body.status !== undefined) updated.status = body.status;
   }
-  await putReminder(s.sub, updated);
+
+  // If profileId changed, delete from old profile and write to new.
+  if (updated.profileId !== found.profileId) {
+    await deleteReminderForProfile(found.profileId, id);
+  }
+  await putReminderForProfile(updated);
   return NextResponse.json({ reminder: updated });
 }
 

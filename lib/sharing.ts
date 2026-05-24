@@ -7,8 +7,11 @@ import {
   deleteShareLink,
   setPartner,
   listProfiles as listOwnerProfiles,
+  listProfilesForUser,
+  listRemindersForProfile,
 } from "./ddb";
-import type { PartnerRecord, ProfileShareEntry, Profile } from "./types";
+import type { PartnerRecord, ProfileShareEntry, Profile, Reminder } from "./types";
+import { NextResponse } from "next/server";
 
 const { PK, SK, doc, TABLE } = _internal;
 
@@ -223,4 +226,44 @@ export async function leaveShare(args: {
     version: profile.version + 1,
   });
   await deleteShareLink(args.callerSub, args.ownerSub, args.profileId);
+}
+
+// ── mapAccessError ────────────────────────────────────────────────────────────
+
+/**
+ * Maps ForbiddenError → 403, NotFoundError → 404.
+ * Re-throws anything else.
+ */
+export function mapAccessError(e: unknown): NextResponse {
+  if (e instanceof ForbiddenError) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (e instanceof NotFoundError) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  throw e;
+}
+
+// ── findReminder ──────────────────────────────────────────────────────────────
+
+export type ReminderWithProfile = {
+  reminder: Reminder;
+  profileId: string;
+};
+
+/**
+ * Walks all accessible profiles for sub and returns the first reminder
+ * matching reminderId, or null if not found.
+ */
+export async function findReminder(
+  sub: string,
+  reminderId: string,
+): Promise<ReminderWithProfile | null> {
+  const grants = await listProfilesForUser(sub);
+  for (const grant of grants) {
+    const reminders = await listRemindersForProfile(grant.profile.id);
+    const found = reminders.find((r) => r.id === reminderId);
+    if (found) return { reminder: found, profileId: grant.profile.id };
+  }
+  return null;
 }

@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import {
   ensureDefaultProfile,
-  listProfiles,
-  listReminders,
-  putReminder,
+  listProfilesForUser,
+  listRemindersForProfile,
+  putReminderForProfile,
 } from "@/lib/ddb";
 import { requireSession } from "@/lib/session";
+import { requireProfileAccess } from "@/lib/sharing";
 import type { Reminder } from "@/lib/types";
 import { ReminderPostSchema, parseBody } from "@/lib/validation";
 
@@ -16,7 +17,11 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const s = await requireSession();
   if (!s.ok) return s.response;
-  const reminders = await listReminders(s.sub);
+  const grants = await listProfilesForUser(s.sub);
+  const remindersNested = await Promise.all(
+    grants.map((g) => listRemindersForProfile(g.profile.id)),
+  );
+  const reminders = remindersNested.flat();
   return NextResponse.json({ reminders });
 }
 
@@ -28,6 +33,14 @@ export async function POST(req: NextRequest) {
   const body = parsed.data;
 
   const profileId = await resolveProfileId(s.sub, body.profileId);
+
+  try {
+    await requireProfileAccess(s.sub, profileId, "editor");
+  } catch (e) {
+    const { mapAccessError } = await import("@/lib/sharing");
+    return mapAccessError(e);
+  }
+
   const isMed = body.kind === "medication";
 
   const reminder: Reminder = {
@@ -43,7 +56,7 @@ export async function POST(req: NextRequest) {
     seriesId: body.seriesId,
     createdAt: Date.now(),
   };
-  await putReminder(s.sub, reminder);
+  await putReminderForProfile(reminder);
   return NextResponse.json({ reminder });
 }
 
@@ -54,9 +67,9 @@ function sortLeads(leads?: number[]): number[] | undefined {
 
 async function resolveProfileId(sub: string, requested?: string): Promise<string> {
   if (requested) {
-    const profiles = await listProfiles(sub);
-    const match = profiles.find((p) => p.id === requested);
-    if (match) return match.id;
+    const grants = await listProfilesForUser(sub);
+    const match = grants.find((g) => g.profile.id === requested);
+    if (match) return match.profile.id;
   }
   const def = await ensureDefaultProfile(sub);
   return def.id;

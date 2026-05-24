@@ -175,20 +175,68 @@ export async function putProfile(ownerSub: string, profile: Profile): Promise<Pr
   return enriched;
 }
 
-export async function deleteProfileCascade(sub: string, profileId: string): Promise<void> {
-  const reminders = await listReminders(sub);
-  const orphaned = reminders.filter((r) => r.profileId === profileId);
-  for (const r of orphaned) await deleteReminder(sub, r.id);
-  const activities = await listAllActivities(sub);
+/**
+ * Deletes a profile and ALL associated data:
+ * - All items under profile#<id> partition (reminders, logs, notified, meta)
+ * - Activities (diário) for this profile, stored in the owner's partition
+ * - The profile metadata item at user#<ownerSub>/profile#<id>
+ * - Share-link records for every member in sharedWith
+ *
+ * @param ownerSub  The ownerSub of the profile (NOT necessarily the caller).
+ * @param profileId The profile id to delete.
+ */
+export async function deleteProfileCascade(ownerSub: string, profileId: string): Promise<void> {
+  // 1. Fetch the profile to get sharedWith members.
+  const profileRes = await doc.send(
+    new GetCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(ownerSub), sk: SK.profile(profileId) },
+    }),
+  );
+  const sharedWith: Array<{ sub: string }> = profileRes.Item
+    ? ((profileRes.Item.sharedWith as Array<{ sub: string }>) ?? [])
+    : [];
+
+  // 2. Query and delete every item under profile#<id> (reminders, logs, notified, meta).
+  let lek: Record<string, unknown> | undefined;
+  do {
+    const res = await doc.send(
+      new QueryCommand({
+        TableName: TABLE,
+        KeyConditionExpression: "pk = :pk",
+        ExpressionAttributeValues: { ":pk": PK.profile(profileId) },
+        ExclusiveStartKey: lek,
+      }),
+    );
+    for (const item of res.Items ?? []) {
+      await doc.send(
+        new DeleteCommand({
+          TableName: TABLE,
+          Key: { pk: item.pk, sk: item.sk },
+        }),
+      );
+    }
+    lek = res.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (lek);
+
+  // 2b. Delete activities (diário) for this profile from the owner's partition.
+  const activities = await listAllActivities(ownerSub);
   for (const a of activities.filter((x) => x.profileId === profileId)) {
-    await deleteActivity(sub, a.date, a.id);
+    await deleteActivity(ownerSub, a.date, a.id);
   }
+
+  // 3. Delete the profile metadata at user#<ownerSub>/profile#<id>.
   await doc.send(
     new DeleteCommand({
       TableName: TABLE,
-      Key: { pk: PK.user(sub), sk: SK.profile(profileId) },
+      Key: { pk: PK.user(ownerSub), sk: SK.profile(profileId) },
     }),
   );
+
+  // 4. Delete the share-link record for each shared member.
+  for (const entry of sharedWith) {
+    await deleteShareLink(entry.sub, ownerSub, profileId);
+  }
 }
 
 export function pickProfileColor(existing: Profile[]): ProfileColor {
@@ -240,6 +288,10 @@ export async function setConfig(sub: string, patch: Partial<Config>): Promise<Co
   return merged;
 }
 
+/**
+ * @deprecated Use listRemindersForProfile across listProfilesForUser instead.
+ * Kept for migration script compatibility.
+ */
 export async function listReminders(sub: string): Promise<Reminder[]> {
   const res = await doc.send(
     new QueryCommand({
@@ -251,6 +303,10 @@ export async function listReminders(sub: string): Promise<Reminder[]> {
   return (res.Items ?? []).map(stripKeys<Reminder>);
 }
 
+/**
+ * @deprecated Use getReminderForProfile + findReminder walker instead.
+ * Kept for migration script compatibility.
+ */
 export async function getReminder(sub: string, id: string): Promise<Reminder | null> {
   const res = await doc.send(
     new GetCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.reminder(id) } }),
@@ -376,6 +432,10 @@ export async function findOpenNap(
   return open.find((n) => n.profileId === profileId) ?? null;
 }
 
+/**
+ * @deprecated Use getLogForProfile across listProfilesForUser instead.
+ * Kept for migration script compatibility.
+ */
 export async function getLog(sub: string, date: string): Promise<DayLog> {
   const res = await doc.send(
     new GetCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.log(date) } }),
