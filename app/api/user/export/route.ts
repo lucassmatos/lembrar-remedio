@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getConfig, getLog, listProfiles, listReminders } from "@/lib/ddb";
+import {
+  getConfig,
+  getLogForProfile,
+  listProfilesForUser,
+  listRemindersForProfile,
+} from "@/lib/ddb";
 import { requireSession } from "@/lib/session";
 import { addDays, nowInTz } from "@/lib/schedule";
 
@@ -10,11 +15,15 @@ export async function GET() {
   const s = await requireSession();
   if (!s.ok) return s.response;
 
-  const [cfg, profiles, reminders] = await Promise.all([
+  const [cfg, grants] = await Promise.all([
     getConfig(s.sub),
-    listProfiles(s.sub),
-    listReminders(s.sub),
+    listProfilesForUser(s.sub),
   ]);
+  const profiles = grants.map((g) => ({ ...g.profile, accessRole: g.accessRole }));
+  const reminderLists = await Promise.all(
+    grants.map((g) => listRemindersForProfile(g.profile.id)),
+  );
+  const reminders = reminderLists.flat();
 
   const { _registered: _r, ...cleanCfg } = cfg;
   void _r;
@@ -23,8 +32,11 @@ export async function GET() {
   const logs: Record<string, unknown> = {};
   for (let i = 0; i < 60; i++) {
     const date = addDays(today, -i);
-    const log = await getLog(s.sub, date);
-    if (Object.keys(log).length > 0) logs[date] = log;
+    const perProfile = await Promise.all(
+      grants.map((g) => getLogForProfile(g.profile.id, date)),
+    );
+    const merged = Object.assign({}, ...perProfile);
+    if (Object.keys(merged).length > 0) logs[date] = merged;
   }
 
   const payload = {
