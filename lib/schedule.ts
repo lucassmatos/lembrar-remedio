@@ -1,4 +1,12 @@
-import type { DayLog, DoseSlot, Medication } from "./types";
+import {
+  DEFAULT_POST_LEADS,
+  DEFAULT_PRE_LEADS,
+  ONE_SHOT_DEFAULT_TIME,
+  type DayLog,
+  type DoseSlot,
+  type Reminder,
+  type ReminderStatus,
+} from "./types";
 
 export function parseTime(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
@@ -10,17 +18,23 @@ export function formatTime(minutes: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
-export function slotKey(medId: string, time: string): string {
-  return `${medId}@${time}`;
+export function slotKey(reminderId: string, time: string): string {
+  return `${reminderId}@${time}`;
 }
 
-export function generateSlotsForMed(med: Medication): string[] {
-  if (med.times && med.times.length > 0) {
-    const valid = med.times.filter((t) => /^\d{2}:\d{2}$/.test(t));
+export function occurrenceKey(reminderId: string, date: string, lead: number): string {
+  return `${reminderId}#${date}#d${lead}`;
+}
+
+export function generateSlotsForReminder(reminder: Reminder): string[] {
+  if (reminder.schedule.type !== "daily-interval") return [];
+  const sch = reminder.schedule;
+  if (sch.times && sch.times.length > 0) {
+    const valid = sch.times.filter((t) => /^\d{2}:\d{2}$/.test(t));
     return Array.from(new Set(valid)).sort();
   }
-  const start = parseTime(med.startTime);
-  const interval = Math.max(1, Math.round(med.intervalHours * 60));
+  const start = parseTime(sch.startTime);
+  const interval = Math.max(1, Math.round(sch.intervalHours * 60));
   const times: string[] = [];
   for (let t = start; t < start + 1440; t += interval) {
     times.push(formatTime(t));
@@ -30,42 +44,47 @@ export function generateSlotsForMed(med: Medication): string[] {
 }
 
 export function medWindow(
-  med: Medication,
+  reminder: Reminder,
   tz: string,
 ): { startDate: string; endDate: string | null } {
-  const startDate = med.startDate ?? dateInTz(med.createdAt, tz).date;
+  if (reminder.schedule.type !== "daily-interval") {
+    return { startDate: dateInTz(reminder.createdAt, tz).date, endDate: null };
+  }
+  const sch = reminder.schedule;
+  const startDate = sch.startDate ?? dateInTz(reminder.createdAt, tz).date;
   const endDate =
-    med.durationDays && med.durationDays > 0
-      ? addDays(startDate, med.durationDays - 1)
+    sch.durationDays && sch.durationDays > 0
+      ? addDays(startDate, sch.durationDays - 1)
       : null;
   return { startDate, endDate };
 }
 
 export function todaySlots(
-  meds: Medication[],
+  reminders: Reminder[],
   log: DayLog,
   today?: { date: string; tz: string },
 ): DoseSlot[] {
   const slots: DoseSlot[] = [];
-  for (const med of meds) {
+  for (const reminder of reminders) {
+    if (reminder.schedule.type !== "daily-interval") continue;
     let minMinutes: number | null = null;
     if (today) {
-      const created = dateInTz(med.createdAt, today.tz);
-      const { startDate, endDate } = medWindow(med, today.tz);
+      const created = dateInTz(reminder.createdAt, today.tz);
+      const { startDate, endDate } = medWindow(reminder, today.tz);
       if (today.date < startDate) continue;
       if (endDate && today.date > endDate) continue;
       if (created.date === today.date && startDate === today.date) {
         minMinutes = created.minutes;
       }
     }
-    for (const time of generateSlotsForMed(med)) {
+    for (const time of generateSlotsForReminder(reminder)) {
       const minutes = parseTime(time);
       if (minMinutes !== null && minutes < minMinutes) continue;
-      const key = slotKey(med.id, time);
+      const key = slotKey(reminder.id, time);
       const entry = log[key];
       slots.push({
-        medId: med.id,
-        med,
+        reminderId: reminder.id,
+        reminder,
         time,
         minutes,
         taken: !!entry?.taken,
@@ -74,6 +93,53 @@ export function todaySlots(
     }
   }
   return slots.sort((a, b) => a.minutes - b.minutes);
+}
+
+export type OneShotOccurrence = {
+  reminderId: string;
+  date: string;
+  time: string;
+  lead: number;
+  occurrenceKey: string;
+};
+
+export function effectiveStatus(reminder: Reminder): ReminderStatus {
+  if (reminder.schedule.type !== "one-shot") return "scheduled";
+  return reminder.status ?? "unscheduled";
+}
+
+export function applicableLeads(reminder: Reminder): number[] {
+  if (reminder.schedule.type !== "one-shot") return [];
+  const status = effectiveStatus(reminder);
+  if (status === "done") return [];
+  const pre =
+    reminder.preLeadDays ?? DEFAULT_PRE_LEADS[reminder.kind] ?? [];
+  const post =
+    reminder.postLeadDays ?? DEFAULT_POST_LEADS[reminder.kind] ?? [];
+  return status === "unscheduled" ? pre : post;
+}
+
+export function oneShotOccurrences(reminder: Reminder): OneShotOccurrence[] {
+  if (reminder.schedule.type !== "one-shot") return [];
+  const sch = reminder.schedule;
+  const time = sch.time && /^\d{2}:\d{2}$/.test(sch.time) ? sch.time : ONE_SHOT_DEFAULT_TIME;
+  const out: OneShotOccurrence[] = [];
+  for (const lead of applicableLeads(reminder)) {
+    const date = addDays(sch.date, -lead);
+    out.push({
+      reminderId: reminder.id,
+      date,
+      time,
+      lead,
+      occurrenceKey: occurrenceKey(reminder.id, sch.date, lead),
+    });
+  }
+  return out;
+}
+
+export function isOneShotPast(reminder: Reminder, todayDate: string): boolean {
+  if (reminder.schedule.type !== "one-shot") return false;
+  return reminder.schedule.date < todayDate;
 }
 
 export function addDays(dateStr: string, days: number): string {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { loadOpenAIKey, loadOpenAIModel } from "@/lib/storage";
-import { addMed } from "@/lib/api";
+import { addReminder } from "@/lib/api";
 import { analyzePrescription, fileToDataUrl, type ParsedMed } from "@/lib/openai";
 
 type Status = "idle" | "loading" | "review" | "done" | "error";
@@ -105,13 +105,17 @@ export function PrescriptionScan({ profileId }: { profileId?: string }) {
       for (const p of chosen) {
         const sorted = [...p.times].filter((t) => /^\d{2}:\d{2}$/.test(t)).sort();
         const times = sorted.length > 0 ? Array.from(new Set(sorted)) : [p.startTime];
-        await addMed({
-          name: p.name,
-          dosage: p.dosage,
-          intervalHours: p.intervalHours,
-          startTime: times[0],
-          times: times.length > 1 ? times : undefined,
-          durationDays: p.durationDays,
+        await addReminder({
+          kind: "medication",
+          title: p.name,
+          subtitle: p.dosage,
+          schedule: {
+            type: "daily-interval",
+            intervalHours: p.intervalHours,
+            startTime: times[0],
+            times: times.length > 1 ? times : undefined,
+            durationDays: p.durationDays,
+          },
           profileId: profileId ?? "",
         });
       }

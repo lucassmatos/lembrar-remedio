@@ -1,13 +1,16 @@
 import Link from "next/link";
 
-export function Nav({ current }: { current: "hoje" | "remedios" | "ajustes" }) {
-  const items: { key: typeof current; label: string; href: string }[] = [
+export type NavKey = "hoje" | "remedios" | "proximos" | "ajustes";
+
+export function Nav({ current }: { current: NavKey }) {
+  const items: { key: NavKey; label: string; href: string }[] = [
     { key: "hoje", label: "Hoje", href: "/" },
     { key: "remedios", label: "Remédios", href: "/medications" },
+    { key: "proximos", label: "Próximos", href: "/upcoming" },
     { key: "ajustes", label: "Ajustes", href: "/settings" },
   ];
   return (
-    <nav className="flex items-baseline gap-6 text-[15px]">
+    <nav className="flex items-baseline gap-5 text-[14px] sm:gap-6 sm:text-[15px]">
       {items.map((it) => {
         const active = it.key === current;
         return (

@@ -3,16 +3,16 @@
 import { useEffect, useState } from "react";
 import { Shell } from "./_components/shell";
 import { TodayList } from "./_components/today-list";
-import { getConfig, getLog, getMeds, getProfiles, onChange } from "@/lib/api";
+import { getConfig, getLog, getProfiles, getReminders, onChange } from "@/lib/api";
 import { nowInTz, todaySlots } from "@/lib/schedule";
-import type { Medication, Profile } from "@/lib/types";
+import type { Profile, Reminder } from "@/lib/types";
 
 const WEEKDAY = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 const MONTH = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 export default function Page() {
   const [mounted, setMounted] = useState(false);
-  const [meds, setMeds] = useState<Medication[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [tz, setTz] = useState("America/Sao_Paulo");
   const [date, setDate] = useState("2026-01-01");
@@ -23,13 +23,14 @@ export default function Page() {
     let cancelled = false;
     async function refresh() {
       try {
-        const [cfg, m, p] = await Promise.all([getConfig(), getMeds(), getProfiles()]);
+        const [cfg, r, p] = await Promise.all([getConfig(), getReminders(), getProfiles()]);
+        const meds = r.filter((x) => x.kind === "medication");
         const now = nowInTz(cfg.timezone);
         const log = await getLog(now.date);
         if (cancelled) return;
-        const slots = todaySlots(m, log, { date: now.date, tz: cfg.timezone });
+        const slots = todaySlots(meds, log, { date: now.date, tz: cfg.timezone });
         setTz(cfg.timezone);
-        setMeds(m);
+        setReminders(meds);
         setProfiles(p);
         setDate(now.date);
         setMinutes(now.minutes);
@@ -78,7 +79,7 @@ export default function Page() {
         <TodayList
           date={date}
           tz={tz}
-          meds={meds}
+          reminders={reminders}
           profiles={profiles}
           nowMinutes={minutes}
         />

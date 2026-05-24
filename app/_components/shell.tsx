@@ -1,4 +1,4 @@
-import { Nav } from "./nav";
+import { Nav, type NavKey } from "./nav";
 
 export function Shell({
   children,
@@ -6,7 +6,7 @@ export function Shell({
   header,
 }: {
   children: React.ReactNode;
-  current: "hoje" | "remedios" | "ajustes";
+  current: NavKey;
   header?: React.ReactNode;
 }) {
   return (

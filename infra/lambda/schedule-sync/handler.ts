@@ -1,113 +1,57 @@
 import type { DynamoDBStreamEvent, DynamoDBRecord } from "aws-lambda";
-import { unmarshall } from "@aws-sdk/util-dynamodb";
-import type { AttributeValue } from "@aws-sdk/client-dynamodb";
-import { generateSlotsForMed } from "../../../lib/schedule";
-import { listMeds, getConfig } from "../../../lib/ddb";
-import type { Medication, Config } from "../../../lib/types";
-import {
-  syncMed,
-  deleteAllForMed,
-  deleteAllForUser,
-  recreateForMed,
-} from "./sync";
+import { updateUserSchedule, deleteUserSchedule } from "./user-schedule";
 
-type Item = Record<string, unknown>;
+type Decision =
+  | { action: "update"; sub: string }
+  | { action: "delete"; sub: string }
+  | null;
 
-function imageToObject(image?: { [k: string]: AttributeValue }): Item | null {
-  if (!image) return null;
-  return unmarshall(image) as Item;
+function decide(record: DynamoDBRecord): Decision {
+  const keys = record.dynamodb?.Keys;
+  const pk = keys?.pk?.S;
+  const sk = keys?.sk?.S;
+  if (!pk || !sk) return null;
+  if (!pk.startsWith("user#")) return null;
+  const sub = pk.slice("user#".length);
+
+  // Only changes that shift next-dose calculation. Skip log#, notified#, profile#.
+  if (sk.startsWith("reminder#")) return { action: "update", sub };
+  if (sk === "config") {
+    if (record.eventName === "REMOVE") return { action: "delete", sub };
+    return { action: "update", sub };
+  }
+  return null;
 }
 
 export async function handler(event: DynamoDBStreamEvent): Promise<void> {
+  // Coalesce a batch into one operation per (sub). Delete wins over update.
+  const updates = new Set<string>();
+  const deletes = new Set<string>();
+
   for (const record of event.Records) {
+    const d = decide(record);
+    if (!d) continue;
+    if (d.action === "delete") deletes.add(d.sub);
+    else updates.add(d.sub);
+  }
+  for (const sub of deletes) updates.delete(sub);
+
+  for (const sub of deletes) {
     try {
-      await handleRecord(record);
+      const removed = await deleteUserSchedule(sub);
+      console.log("user schedule deleted", { sub, removed });
     } catch (e) {
-      console.error("record failed", record.eventID, e);
-      throw e; // re-throw to let stream retry
+      console.error("failed to delete user schedule", { sub }, e);
+      throw e;
     }
   }
-}
-
-async function handleRecord(record: DynamoDBRecord): Promise<void> {
-  const keys = record.dynamodb?.Keys;
-  if (!keys?.pk?.S || !keys.sk?.S) return;
-  const pk = keys.pk.S;
-  const sk = keys.sk.S;
-
-  if (!pk.startsWith("user#")) return;
-  const sub = pk.slice("user#".length);
-
-  if (sk.startsWith("med#")) {
-    const medId = sk.slice("med#".length);
-    await handleMedChange(sub, medId, record);
-    return;
+  for (const sub of updates) {
+    try {
+      const result = await updateUserSchedule(sub);
+      console.log("user schedule synced", { sub, ...result });
+    } catch (e) {
+      console.error("failed to sync user schedule", { sub }, e);
+      throw e;
+    }
   }
-
-  if (sk === "config") {
-    await handleConfigChange(sub, record);
-    return;
-  }
-}
-
-async function handleMedChange(
-  sub: string,
-  medId: string,
-  record: DynamoDBRecord,
-): Promise<void> {
-  if (record.eventName === "REMOVE") {
-    const deleted = await deleteAllForMed(sub, medId);
-    console.log("med removed", { sub, medId, deleted: deleted.length });
-    return;
-  }
-
-  const newImage = imageToObject(record.dynamodb?.NewImage as { [k: string]: AttributeValue } | undefined);
-  if (!newImage) return;
-
-  const med = newImage as unknown as Medication;
-  const cfg = await getConfig(sub);
-  const times = generateSlotsForMed(med);
-  const result = await syncMed({
-    sub,
-    medId: med.id,
-    times,
-    timezone: cfg.timezone || "America/Sao_Paulo",
-    enabled: !!cfg.chatId,
-  });
-  console.log("med synced", { sub, medId, times: times.length, ...result });
-}
-
-async function handleConfigChange(sub: string, record: DynamoDBRecord): Promise<void> {
-  if (record.eventName === "REMOVE") {
-    const deleted = await deleteAllForUser(sub);
-    console.log("config removed, all schedules cleared", { sub, deleted: deleted.length });
-    return;
-  }
-
-  const newImage = imageToObject(record.dynamodb?.NewImage as { [k: string]: AttributeValue } | undefined);
-  const oldImage = imageToObject(record.dynamodb?.OldImage as { [k: string]: AttributeValue } | undefined);
-  if (!newImage) return;
-
-  const newCfg = newImage as unknown as Config;
-  const oldCfg = oldImage as unknown as Config | null;
-
-  const tzChanged = !!oldCfg && oldCfg.timezone !== newCfg.timezone;
-  const chatChanged = (oldCfg?.chatId || null) !== (newCfg.chatId || null);
-
-  if (!tzChanged && !chatChanged) return;
-
-  // Need to recreate everything for this user
-  const meds = await listMeds(sub);
-  const enabled = !!newCfg.chatId;
-  const tz = newCfg.timezone || "America/Sao_Paulo";
-  for (const med of meds) {
-    await recreateForMed(sub, med.id, generateSlotsForMed(med), tz, enabled);
-  }
-  console.log("user config synced", {
-    sub,
-    tzChanged,
-    chatChanged,
-    enabled,
-    mediCount: meds.length,
-  });
 }

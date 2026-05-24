@@ -1,9 +1,9 @@
 "use client";
 
-import type { Config, DayLog, Medication, Profile } from "./types";
+import type { Config, DayLog, Profile, Reminder } from "./types";
 
 const EVT = "lr:change";
-type Scope = "meds" | "config" | "log" | "profiles";
+type Scope = "reminders" | "config" | "log" | "profiles";
 
 function emit(scope: Scope) {
   if (typeof window !== "undefined") {
@@ -27,32 +27,37 @@ async function jsonFetch<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
   return (await res.json()) as T;
 }
 
-export async function getMeds(): Promise<Medication[]> {
-  const data = await jsonFetch<{ meds: Medication[] }>("/api/medications");
-  return data.meds;
+export async function getReminders(): Promise<Reminder[]> {
+  const data = await jsonFetch<{ reminders: Reminder[] }>("/api/reminders");
+  return data.reminders;
 }
 
-export async function addMed(med: Omit<Medication, "id" | "createdAt">): Promise<Medication> {
-  const data = await jsonFetch<{ med: Medication }>("/api/medications", {
+export async function addReminder(
+  reminder: Omit<Reminder, "id" | "createdAt">,
+): Promise<Reminder> {
+  const data = await jsonFetch<{ reminder: Reminder }>("/api/reminders", {
     method: "POST",
-    body: JSON.stringify(med),
+    body: JSON.stringify(reminder),
   });
-  emit("meds");
-  return data.med;
+  emit("reminders");
+  return data.reminder;
 }
 
-export async function updateMed(id: string, patch: Partial<Medication>): Promise<Medication> {
-  const data = await jsonFetch<{ med: Medication }>(`/api/medications/${id}`, {
+export async function updateReminder(
+  id: string,
+  patch: Partial<Reminder>,
+): Promise<Reminder> {
+  const data = await jsonFetch<{ reminder: Reminder }>(`/api/reminders/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
-  emit("meds");
-  return data.med;
+  emit("reminders");
+  return data.reminder;
 }
 
-export async function deleteMed(id: string): Promise<void> {
-  await jsonFetch(`/api/medications/${id}`, { method: "DELETE" });
-  emit("meds");
+export async function deleteReminder(id: string): Promise<void> {
+  await jsonFetch(`/api/reminders/${id}`, { method: "DELETE" });
+  emit("reminders");
 }
 
 export async function getConfig(): Promise<Config> {
@@ -116,7 +121,7 @@ export async function updateProfile(
 export async function deleteProfile(id: string): Promise<void> {
   await jsonFetch(`/api/profiles/${id}`, { method: "DELETE" });
   emit("profiles");
-  emit("meds");
+  emit("reminders");
 }
 
 export function onChange(

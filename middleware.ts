@@ -12,22 +12,28 @@ const PUBLIC_PATHS = [
   "/sw.js",
 ];
 
-export default auth((req) => {
-  const { nextUrl } = req;
-  const path = nextUrl.pathname;
+const DEV_LOCAL = process.env.LR_DEV_LOCAL === "1";
 
-  if (PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"))) {
-    return NextResponse.next();
-  }
+export default DEV_LOCAL
+  ? function () {
+      return NextResponse.next();
+    }
+  : auth((req) => {
+      const { nextUrl } = req;
+      const path = nextUrl.pathname;
 
-  if (!req.auth) {
-    const url = new URL("/login", nextUrl);
-    if (path !== "/") url.searchParams.set("from", path);
-    return NextResponse.redirect(url);
-  }
+      if (PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"))) {
+        return NextResponse.next();
+      }
 
-  return NextResponse.next();
-});
+      if (!req.auth) {
+        const url = new URL("/login", nextUrl);
+        if (path !== "/") url.searchParams.set("from", path);
+        return NextResponse.redirect(url);
+      }
+
+      return NextResponse.next();
+    });
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],

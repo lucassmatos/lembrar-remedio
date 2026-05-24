@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { addMed, updateMed } from "@/lib/api";
-import type { Medication } from "@/lib/types";
+import { addReminder, updateReminder } from "@/lib/api";
+import type { DailyIntervalSchedule, Reminder } from "@/lib/types";
 
 const INTERVAL_CHIPS = [4, 6, 8, 12, 24];
 const DURATION_CHIPS = [5, 7, 10, 14, 30];
 
 type Props = {
-  med?: Medication;
+  reminder?: Reminder;
   profileId?: string;
-  onSaved?: (m: Medication) => void;
+  onSaved?: (r: Reminder) => void;
   onCancel?: () => void;
 };
 
@@ -19,16 +19,22 @@ function todayDate(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function MedForm({ med, profileId, onSaved, onCancel }: Props) {
-  const editing = !!med;
-  const [name, setName] = useState(med?.name ?? "");
-  const [dosage, setDosage] = useState(med?.dosage ?? "");
-  const [intervalHours, setIntervalHours] = useState<number | "">(med?.intervalHours ?? 8);
-  const [startTime, setStartTime] = useState(med?.startTime ?? "08:00");
+function intervalScheduleOf(r?: Reminder): DailyIntervalSchedule | null {
+  if (r?.schedule.type !== "daily-interval") return null;
+  return r.schedule;
+}
+
+export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
+  const editing = !!reminder;
+  const initial = intervalScheduleOf(reminder);
+  const [name, setName] = useState(reminder?.title ?? "");
+  const [dosage, setDosage] = useState(reminder?.subtitle ?? "");
+  const [intervalHours, setIntervalHours] = useState<number | "">(initial?.intervalHours ?? 8);
+  const [startTime, setStartTime] = useState(initial?.startTime ?? "08:00");
   const [durationDays, setDurationDays] = useState<number | "" | "none">(
-    med?.durationDays ?? "none",
+    initial?.durationDays ?? "none",
   );
-  const [startDate, setStartDate] = useState<string>(med?.startDate ?? "");
+  const [startDate, setStartDate] = useState<string>(initial?.startDate ?? "");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -45,27 +51,27 @@ export function MedForm({ med, profileId, onSaved, onCancel }: Props) {
     setBusy(true);
     try {
       const duration = typeof durationDays === "number" ? durationDays : undefined;
-      const start = startDate || undefined;
-      let saved: Medication;
-      if (editing && med) {
-        saved = await updateMed(med.id, {
-          name: name.trim(),
-          dosage: dosage.trim() || undefined,
-          intervalHours: Number(intervalHours),
-          startTime,
-          times: undefined,
-          durationDays: duration === undefined ? null : duration,
-          startDate: start === undefined ? null : start,
-        } as Partial<Medication>);
+      const schedule: DailyIntervalSchedule = {
+        type: "daily-interval",
+        intervalHours: Number(intervalHours),
+        startTime,
+      };
+      if (duration) schedule.durationDays = duration;
+      if (startDate) schedule.startDate = startDate;
+      let saved: Reminder;
+      if (editing && reminder) {
+        saved = await updateReminder(reminder.id, {
+          title: name.trim(),
+          subtitle: dosage.trim() || undefined,
+          schedule,
+        });
       } else {
-        saved = await addMed({
-          name: name.trim(),
-          dosage: dosage.trim() || undefined,
-          intervalHours: Number(intervalHours),
-          startTime,
+        saved = await addReminder({
+          kind: "medication",
+          title: name.trim(),
+          subtitle: dosage.trim() || undefined,
+          schedule,
           profileId: profileId ?? "",
-          durationDays: duration,
-          startDate: start,
         });
       }
       if (!editing) {

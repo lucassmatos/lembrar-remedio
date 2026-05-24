@@ -1,79 +1,147 @@
 # lembrar-remedio
 
-App simples pra controlar horários de remédio. Cadastra o remédio, define
-de quantas em quantas horas, marca no checkbox quando tomou. Notificação
-local via Web Notifications API enquanto o app estiver aberto (ou instalado
-como PWA e ativo).
+App pra controlar horários de remédio, vacinas e retornos médicos — pra você
+e pra quem você cuida (filho, avô, etc). Marca quando tomou, recebe notificação
+no horário, escaneia receita com foto.
 
-**Tudo no navegador.** Sem backend, sem banco, sem login. Os dados ficam
-em `localStorage` no seu device.
+## O que tem
 
-Stack: Next.js 15 (App Router), Tailwind v4, Service Worker pra PWA,
-Notifications API.
+- **Remédios** com intervalo diário (8/8h, 12/12h, horários específicos,
+  duração do tratamento).
+- **Vacinas e retornos** com data marcada e avisos antes (30/15/7 dias) +
+  cobrança depois ("já agendou?").
+- **Múltiplos perfis** — cadastra remédios pra você, esposa, filho, mãe.
+- **Notificação por Telegram** quando chega a hora. Botão pra marcar tomado
+  direto no chat.
+- **Notificação local** (Web Notifications) enquanto o app está aberto ou
+  instalado como PWA.
+- **Escanear receita** com a câmera — OpenAI lê a posologia e cadastra os
+  remédios (você usa sua própria chave).
+
+## Stack
+
+Next.js 15 (App Router) · NextAuth v5 (Google) · DynamoDB · AWS Lambda +
+EventBridge Scheduler · Tailwind v4 · PWA + Service Worker.
+
+## Login
+
+Login com Google obrigatório. A gente guarda `email`, `nome`, `sub` do Google,
+mais o que você cadastra (remédios, horários, perfis, log de adesão, chat do
+Telegram se você parear, timezone).
+
+Tudo fica em DynamoDB na AWS (us-east-1). Logs de adesão expiram em 60 dias
+por TTL automático.
+
+## Notificações
+
+| Plataforma | App aberto / PWA ativo | App fechado |
+|---|---|---|
+| Telegram (pareado) | ✓ | ✓ |
+| Chrome desktop sem Telegram | ✓ | — |
+| Android Chrome PWA sem Telegram | ✓ | — |
+| iOS Safari PWA sem Telegram (16.4+) | ✓ | — |
+
+Pra ter aviso com app fechado, parear Telegram em **Ajustes → Conectar
+Telegram**.
 
 ## Rodar local
 
 ```bash
 npm install
-npx next dev
+npm run dev
 ```
 
-Abre em `http://localhost:3000`.
+Variáveis de ambiente:
 
-## Deploy na Vercel
+```bash
+# Auth
+AUTH_SECRET=…                       # gera com `openssl rand -hex 32`
+AUTH_GOOGLE_ID=…
+AUTH_GOOGLE_SECRET=…
 
-1. Cria um repo, importa na Vercel.
-2. Deploy. Não precisa de variável de ambiente nenhuma.
-3. Abre a URL no celular, vai em **Ajustes**, libera notificação, instala
-   como PWA ("Adicionar à Tela de Início" no iOS, "Instalar app" no Android).
+# DynamoDB (renomeado pra evitar collision com env reservada do Vercel)
+LR_AWS_REGION=us-east-1
+LR_AWS_ACCESS_KEY_ID=…
+LR_AWS_SECRET_ACCESS_KEY=…
+DDB_TABLE_NAME=lembrar-remedio
 
-## Como funcionam as notificações
+# Telegram (opcional, mas o app é meio capenga sem)
+TELEGRAM_BOT_TOKEN=…
+TELEGRAM_BOT_USERNAME=…
+TELEGRAM_WEBHOOK_SECRET=…           # qualquer string aleatória
+APP_SECRET=…                        # protege /api/telegram/setup
+```
 
-Enquanto a aba estiver aberta (ou o PWA estiver rodando), o app checa a
-cada 30s se tem dose dentro da janela atual (15 min antes/depois) que
-ainda não foi marcada e não foi notificada hoje. Se sim, dispara um
-`Notification` via Service Worker (ou direto se SW não estiver pronto).
+`http://localhost:3000`.
 
-**Limitação importante:** com o app totalmente fechado, navegador não
-roda nada em background. Pra alarme "garantido" mesmo com tudo fechado
-você precisaria de Web Push com servidor (backend + VAPID) ou alarme
-nativo do celular. Pro uso prático (abrir de manhã, deixar instalado),
-funciona bem.
+## Deploy
 
-| Plataforma | Com aba/PWA aberto | Com tudo fechado |
-|---|---|---|
-| Chrome desktop | ✓ | – |
-| Android Chrome (PWA instalada) | ✓ | – |
-| iOS Safari (PWA instalada, 16.4+) | ✓ | – |
-| Firefox | ✓ | – |
+App na Vercel, infra (DynamoDB + Lambdas + EventBridge) via CDK em
+`infra/`. Os Lambdas escutam o stream do DDB e mantêm os schedules de
+notificação atualizados.
+
+```bash
+cd infra
+npm install
+npx cdk deploy --all
+```
+
+Variáveis CDK esperadas no `cdk.json` ou ambiente. Veja `infra/bin/app.ts`.
 
 ## Estrutura
 
 ```
 app/
-  page.tsx                    hoje (lista de doses do dia)
+  page.tsx                    hoje (doses do dia)
+  upcoming/page.tsx           vacinas + retornos
   medications/page.tsx        cadastro de remédios
-  settings/page.tsx           permissão, instalar, fuso, apagar dados
-  _components/                shell, nav, dose list, formulário, banner
-  globals.css
-  layout.tsx
+  settings/page.tsx           perfil, timezone, Telegram, receita
+  login/page.tsx              Google sign-in
+  api/
+    reminders/                CRUD de remédio/vacina/retorno
+    profiles/                 CRUD de perfis
+    config/                   timezone, chatId
+    log/                      marcar dose tomada/pulada
+    telegram/                 webhook + pareamento
+    auth/                     NextAuth handler
+  _components/                forms, listas, telegram panel
 lib/
-  storage.ts                  wrapper de localStorage + eventos
-  schedule.ts                 geração de horários do dia
-  types.ts
+  schedule.ts                 geração de slots, timezone
+  next-dose.ts                cálculo da próxima ocorrência por usuário
+  ddb.ts                      DynamoDB wrapper
+  notify-one.ts               envio de uma notificação (compartilhada Next + Lambda)
+  openai.ts                   parser de receita
+  telegram.ts                 cliente Telegram Bot API
+  api.ts                      wrapper client-side
+infra/
+  bin/app.ts                  entry CDK
+  lib/data-stack.ts           DDB table + stream
+  lib/compute-stack.ts        Lambdas + IAM
+  lambda/notify-user/         dispara as notificações pendentes do user
+  lambda/schedule-sync/       reage ao DDB stream, mantém schedule por user
 public/
   sw.js                       service worker (cache + notification click)
-  icon.svg
-  manifest.webmanifest        (em app/ via Next.js, exposto na raiz)
+  manifest.webmanifest
 ```
 
-## Dados
+## Dados que coletamos
 
-Tudo em `localStorage`, prefixo `lr.`:
+Pra cumprir LGPD, eis a lista honesta do que fica guardado:
 
-- `lr.meds.v1` — lista de remédios
-- `lr.config.v1` — fuso horário
-- `lr.log.YYYY-MM-DD` — quais doses do dia foram marcadas como tomadas
-- `lr.notified.YYYY-MM-DD` — quais doses do dia já dispararam notificação
+- **Da conta Google**: email, nome, ID estável (`sub`).
+- **Lembretes**: nome, dosagem, horários, duração, perfil associado.
+- **Adesão**: quais doses você marcou como tomadas/puladas (expira em 60d).
+- **Telegram**: o `chat_id` se você parear (pode desvincular a qualquer
+  momento mandando `/desvincular` no bot).
+- **Receita escaneada**: a foto vai pra OpenAI usando *sua* chave (BYOK) e
+  o resultado parseado é guardado. A imagem não é persistida no nosso lado.
 
-Logs com mais de 60 dias são limpos automaticamente.
+Pra apagar tudo: **Ajustes → Apagar minha conta**.
+
+## Limitações
+
+- iOS exige PWA instalada pra notificação funcionar.
+- Sem Telegram, com tudo fechado, browser não roda nada em background — a
+  notificação chega quando você abre.
+- Escanear receita só faz sentido em português brasileiro (o prompt é
+  hard-coded em pt-BR).

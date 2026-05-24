@@ -1,23 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Medication, Profile } from "@/lib/types";
+import type { DailyIntervalSchedule, Profile, Reminder } from "@/lib/types";
 import {
   daysBetween,
   formatBrDate,
-  generateSlotsForMed,
+  generateSlotsForReminder,
   medWindow,
   nowInTz,
 } from "@/lib/schedule";
-import { deleteMed, getConfig } from "@/lib/api";
+import { deleteReminder, getConfig } from "@/lib/api";
 import { MedForm } from "./med-form";
 import { ProfileBadge } from "./profile-badge";
 
 export function MedList({
-  meds,
+  reminders,
   profiles = [],
 }: {
-  meds: Medication[];
+  reminders: Reminder[];
   profiles?: Profile[];
 }) {
   const [tz, setTz] = useState("America/Sao_Paulo");
@@ -36,7 +36,7 @@ export function MedList({
   const showProfile = profiles.length >= 2;
   const profileById = new Map(profiles.map((p) => [p.id, p]));
 
-  if (meds.length === 0) {
+  if (reminders.length === 0) {
     return (
       <p className="py-6 text-[15px] text-ink-soft">
         Você ainda não cadastrou nenhum remédio.
@@ -46,24 +46,26 @@ export function MedList({
 
   async function remove(id: string, name: string) {
     if (!confirm(`Apagar ${name}?`)) return;
-    await deleteMed(id);
+    await deleteReminder(id);
     if (editingId === id) setEditingId(null);
   }
 
   return (
     <ul className="divide-y divide-edge">
-      {meds.map((med) => {
-        const isEditing = editingId === med.id;
-        const times = generateSlotsForMed(med);
-        const window = med.durationDays ? medWindow(med, tz) : null;
+      {reminders.map((reminder) => {
+        if (reminder.schedule.type !== "daily-interval") return null;
+        const sch = reminder.schedule;
+        const isEditing = editingId === reminder.id;
+        const times = generateSlotsForReminder(reminder);
+        const win = sch.durationDays ? medWindow(reminder, tz) : null;
         const today = nowInTz(tz).date;
-        const durationLabel = renderDurationLabel(med, window, today);
+        const durationLabel = renderDurationLabel(sch, win, today);
         return (
-          <li key={med.id} className="py-5">
+          <li key={reminder.id} className="py-5">
             {isEditing ? (
               <div className="rounded-2xl border border-edge bg-paper-2/40 p-5">
                 <MedForm
-                  med={med}
+                  reminder={reminder}
                   onSaved={() => setEditingId(null)}
                   onCancel={() => setEditingId(null)}
                 />
@@ -72,14 +74,14 @@ export function MedList({
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 font-display text-[20px] leading-tight tracking-tight text-ink">
-                    {showProfile && profileById.get(med.profileId) ? (
-                      <ProfileBadge profile={profileById.get(med.profileId)!} size={20} />
+                    {showProfile && profileById.get(reminder.profileId) ? (
+                      <ProfileBadge profile={profileById.get(reminder.profileId)!} size={20} />
                     ) : null}
-                    <span className="min-w-0 truncate">{med.name}</span>
+                    <span className="min-w-0 truncate">{reminder.title}</span>
                   </div>
                   <div className="mt-1 text-[13px] text-ink-soft">
-                    {med.dosage ? `${med.dosage} · ` : ""}
-                    a cada {med.intervalHours}h
+                    {reminder.subtitle ? `${reminder.subtitle} · ` : ""}
+                    a cada {sch.intervalHours}h
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[13px] tnum text-ink-faint">
                     {times.map((t, i) => (
@@ -98,14 +100,14 @@ export function MedList({
                 <div className="flex shrink-0 items-center gap-4 text-[13px]">
                   <button
                     type="button"
-                    onClick={() => setEditingId(med.id)}
+                    onClick={() => setEditingId(reminder.id)}
                     className="text-ink-soft underline decoration-edge-2 underline-offset-4 transition-colors hover:text-ink"
                   >
                     editar
                   </button>
                   <button
                     type="button"
-                    onClick={() => remove(med.id, med.name)}
+                    onClick={() => remove(reminder.id, reminder.title)}
                     className="text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-clay"
                   >
                     apagar
@@ -121,7 +123,7 @@ export function MedList({
 }
 
 function renderDurationLabel(
-  _med: Medication,
+  _sch: DailyIntervalSchedule,
   window: { startDate: string; endDate: string | null } | null,
   today: string,
 ): { text: string; color: string } | null {

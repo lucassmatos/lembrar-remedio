@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { DayLog, DoseSlot, Medication, Profile } from "@/lib/types";
+import type { DayLog, DoseSlot, Profile, Reminder } from "@/lib/types";
 import { slotKey, todaySlots } from "@/lib/schedule";
 import { getLog, onChange, setLogEntry } from "@/lib/api";
 import { ProfileBadge } from "./profile-badge";
@@ -9,14 +9,14 @@ import { ProfileBadge } from "./profile-badge";
 type Props = {
   date: string;
   tz: string;
-  meds: Medication[];
+  reminders: Reminder[];
   profiles?: Profile[];
   nowMinutes: number;
 };
 
 const NEAR_WINDOW = 30;
 
-export function TodayList({ date, tz, meds, profiles = [], nowMinutes }: Props) {
+export function TodayList({ date, tz, reminders, profiles = [], nowMinutes }: Props) {
   const profileById = useMemo(
     () => new Map(profiles.map((p) => [p.id, p])),
     [profiles],
@@ -43,12 +43,12 @@ export function TodayList({ date, tz, meds, profiles = [], nowMinutes }: Props) 
   }, [date]);
 
   const slots = useMemo(
-    () => todaySlots(meds, log, { date, tz }),
-    [meds, log, date, tz],
+    () => todaySlots(reminders, log, { date, tz }),
+    [reminders, log, date, tz],
   );
 
   async function toggle(slot: DoseSlot) {
-    const key = slotKey(slot.medId, slot.time);
+    const key = slotKey(slot.reminderId, slot.time);
     const next = !slot.taken;
     setLog((prev) => {
       const copy = { ...prev };
@@ -87,9 +87,9 @@ export function TodayList({ date, tz, meds, profiles = [], nowMinutes }: Props) 
     <ol className="relative">
       {slots.map((slot, i) => (
         <DoseRow
-          key={slotKey(slot.medId, slot.time) + "-" + i}
+          key={slotKey(slot.reminderId, slot.time) + "-" + i}
           slot={slot}
-          profile={showProfile ? profileById.get(slot.med.profileId) : undefined}
+          profile={showProfile ? profileById.get(slot.reminder.profileId) : undefined}
           nowMinutes={nowMinutes}
           onToggle={() => toggle(slot)}
         />
@@ -130,10 +130,14 @@ function DoseRow({
             }
           >
             {profile ? <ProfileBadge profile={profile} size={20} /> : null}
-            <span className="min-w-0 truncate">{slot.med.name}</span>
+            <span className="min-w-0 truncate">{slot.reminder.title}</span>
           </div>
           <div className="mt-1 text-[13px] tnum text-ink-faint">
-            {slot.med.dosage ? slot.med.dosage : `a cada ${slot.med.intervalHours}h`}
+            {slot.reminder.subtitle
+              ? slot.reminder.subtitle
+              : slot.reminder.schedule.type === "daily-interval"
+                ? `a cada ${slot.reminder.schedule.intervalHours}h`
+                : ""}
             {slot.taken && slot.takenAt ? (
               <>
                 <span className="mx-1.5 text-ink-faint/60">·</span>
