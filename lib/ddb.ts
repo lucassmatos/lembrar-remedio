@@ -10,14 +10,18 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { nanoid } from "nanoid";
 import type {
+  Activity,
   Config,
   DayLog,
+  NapActivity,
   Profile,
   ProfileColor,
   Reminder,
   ReminderStatus,
 } from "./types";
-import { PROFILE_COLORS } from "./types";
+import { isOngoingNap, PROFILE_COLORS } from "./types";
+import { addDays, nowInTz } from "./schedule";
+import { activityTime } from "./activity";
 import { devDoc, isDevLocal } from "./dev-store";
 
 const TABLE = process.env.DDB_TABLE_NAME || "lembrar-remedio";
@@ -53,6 +57,7 @@ const SK = {
   reminder: (id: string) => `reminder#${id}`,
   profile: (id: string) => `profile#${id}`,
   log: (date: string) => `log#${date}`,
+  activity: (date: string, id: string) => `activity#${date}#${id}`,
   notified: (date: string) => `notified#${date}`,
   pair: "pair",
   chat: "chat",
@@ -141,6 +146,10 @@ export async function deleteProfileCascade(sub: string, profileId: string): Prom
   const reminders = await listReminders(sub);
   const orphaned = reminders.filter((r) => r.profileId === profileId);
   for (const r of orphaned) await deleteReminder(sub, r.id);
+  const activities = await listAllActivities(sub);
+  for (const a of activities.filter((x) => x.profileId === profileId)) {
+    await deleteActivity(sub, a.date, a.id);
+  }
   await doc.send(
     new DeleteCommand({
       TableName: TABLE,
@@ -246,6 +255,92 @@ export async function deleteReminder(sub: string, id: string): Promise<void> {
       Key: { pk: PK.user(sub), sk: SK.reminder(id) },
     }),
   );
+}
+
+export async function listActivities(sub: string, date: string): Promise<Activity[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.user(sub), ":sk": `activity#${date}#` },
+    }),
+  );
+  return (res.Items ?? [])
+    .map(stripKeys<Activity>)
+    .sort((a, b) => activityTime(a) - activityTime(b));
+}
+
+export async function listAllActivities(sub: string): Promise<Activity[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.user(sub), ":sk": "activity#" },
+    }),
+  );
+  return (res.Items ?? []).map(stripKeys<Activity>);
+}
+
+export async function getActivity(
+  sub: string,
+  date: string,
+  id: string,
+): Promise<Activity | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.activity(date, id) } }),
+  );
+  if (!res.Item) return null;
+  return stripKeys<Activity>(res.Item);
+}
+
+export async function putActivity(sub: string, activity: Activity): Promise<Activity> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.user(sub), sk: SK.activity(activity.date, activity.id), ...activity },
+    }),
+  );
+  return activity;
+}
+
+export async function deleteActivity(sub: string, date: string, id: string): Promise<void> {
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(sub), sk: SK.activity(date, id) },
+    }),
+  );
+}
+
+/**
+ * Sonecas em andamento (sem endedAt) de todos os perfis. Consulta o bucket de
+ * hoje e o de ontem — uma soneca pode ter começado antes da meia-noite — e
+ * deduplica por id. Mais recentes primeiro.
+ */
+export async function listOpenNaps(sub: string, tz: string): Promise<NapActivity[]> {
+  const today = nowInTz(tz).date;
+  const buckets = [today, addDays(today, -1)];
+  const open: NapActivity[] = [];
+  const seen = new Set<string>();
+  for (const date of buckets) {
+    for (const a of await listActivities(sub, date)) {
+      if (isOngoingNap(a) && !seen.has(a.id)) {
+        seen.add(a.id);
+        open.push(a);
+      }
+    }
+  }
+  return open.sort((a, b) => b.startedAt - a.startedAt);
+}
+
+/** Soneca em andamento de um perfil específico, se houver. */
+export async function findOpenNap(
+  sub: string,
+  profileId: string,
+  tz: string,
+): Promise<NapActivity | null> {
+  const open = await listOpenNaps(sub, tz);
+  return open.find((n) => n.profileId === profileId) ?? null;
 }
 
 export async function getLog(sub: string, date: string): Promise<DayLog> {

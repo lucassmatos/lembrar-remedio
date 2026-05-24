@@ -87,3 +87,40 @@ export function isOneShot(
 ): r is Reminder & { schedule: OneShotSchedule } {
   return r.schedule.type === "one-shot";
 }
+
+// --- Activities (Diário): registros do que já aconteceu / está acontecendo ---
+// Diferente de Reminder: não se agenda, não notifica. Soneca tem duração e um
+// estado "em andamento" (sem endedAt). Mamada é pontual (lado + instante).
+export const ACTIVITY_TYPES = ["nap", "feed"] as const;
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+export const FEED_SIDES = ["left", "right"] as const;
+export type FeedSide = (typeof FEED_SIDES)[number];
+
+type BaseActivity = {
+  id: string;
+  type: ActivityType;
+  profileId: string;
+  date: string; // "YYYY-MM-DD" local (TZ do user) — bucket de query
+  createdAt: number; // epoch ms
+};
+export type NapActivity = BaseActivity & {
+  type: "nap";
+  startedAt: number; // epoch ms
+  endedAt?: number; // epoch ms; ausente = soneca em andamento
+};
+export type FeedActivity = BaseActivity & {
+  type: "feed";
+  side: FeedSide;
+  at: number; // epoch ms do registro
+};
+export type Activity = NapActivity | FeedActivity;
+
+export function isNap(a: Activity): a is NapActivity {
+  return a.type === "nap";
+}
+export function isFeed(a: Activity): a is FeedActivity {
+  return a.type === "feed";
+}
+export function isOngoingNap(a: Activity): a is NapActivity {
+  return isNap(a) && a.endedAt == null;
+}

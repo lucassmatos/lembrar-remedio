@@ -5,6 +5,7 @@ export type NavKey =
   | "remedios"
   | "consultas"
   | "vacinas"
+  | "diario"
   | "ajustes";
 
 export function Nav({ current }: { current: NavKey }) {
@@ -13,6 +14,7 @@ export function Nav({ current }: { current: NavKey }) {
     { key: "remedios", label: "Medicamentos", href: "/medications" },
     { key: "consultas", label: "Consultas", href: "/appointments" },
     { key: "vacinas", label: "Vacinas", href: "/vaccines" },
+    { key: "diario", label: "Diário", href: "/diario" },
     { key: "ajustes", label: "Ajustes", href: "/settings" },
   ];
   return (

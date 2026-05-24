@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
-import { PROFILE_COLORS, REMINDER_KINDS } from "./types";
+import { FEED_SIDES, PROFILE_COLORS, REMINDER_KINDS } from "./types";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -38,7 +38,7 @@ export async function parseBody<T>(
 }
 
 const HHMM = /^\d{2}:\d{2}$/;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SLOT_KEY = /^[A-Za-z0-9_-]{1,32}@\d{2}:\d{2}$/;
 const ID = /^[A-Za-z0-9_-]{1,16}$/;
 
@@ -147,6 +147,38 @@ export const ProfilePatchSchema = z
   })
   .strict();
 export type ProfilePatch = z.infer<typeof ProfilePatchSchema>;
+
+const EpochMs = z.number().int().positive();
+
+export const ActivityPostSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("nap"),
+      profileId: z.string().regex(ID).optional(),
+      startedAt: EpochMs.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("feed"),
+      profileId: z.string().regex(ID).optional(),
+      side: z.enum(FEED_SIDES),
+      at: EpochMs.optional(),
+    })
+    .strict(),
+]);
+export type ActivityPost = z.infer<typeof ActivityPostSchema>;
+
+export const ActivityPatchSchema = z
+  .object({
+    date: z.string().regex(ISO_DATE, "YYYY-MM-DD"),
+    startedAt: EpochMs.optional(),
+    endedAt: EpochMs.nullable().optional(),
+    side: z.enum(FEED_SIDES).optional(),
+    at: EpochMs.optional(),
+  })
+  .strict();
+export type ActivityPatch = z.infer<typeof ActivityPatchSchema>;
 
 export const LogPostSchema = z
   .object({

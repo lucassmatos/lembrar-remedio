@@ -1,9 +1,9 @@
 "use client";
 
-import type { Config, DayLog, Profile, Reminder } from "./types";
+import type { Activity, Config, DayLog, FeedSide, NapActivity, Profile, Reminder } from "./types";
 
 const EVT = "lr:change";
-type Scope = "reminders" | "config" | "log" | "profiles";
+type Scope = "reminders" | "config" | "log" | "profiles" | "activities";
 
 function emit(scope: Scope) {
   if (typeof window !== "undefined") {
@@ -122,6 +122,61 @@ export async function deleteProfile(id: string): Promise<void> {
   await jsonFetch(`/api/profiles/${id}`, { method: "DELETE" });
   emit("profiles");
   emit("reminders");
+}
+
+export type ActivitiesView = {
+  date: string;
+  activities: Activity[];
+  openNaps: NapActivity[];
+};
+
+export async function getActivities(date: string): Promise<ActivitiesView> {
+  return jsonFetch<ActivitiesView>(`/api/activities?date=${encodeURIComponent(date)}`);
+}
+
+export async function startNap(profileId: string): Promise<Activity> {
+  const data = await jsonFetch<{ activity: Activity }>("/api/activities", {
+    method: "POST",
+    body: JSON.stringify({ type: "nap", profileId: profileId || undefined }),
+  });
+  emit("activities");
+  return data.activity;
+}
+
+export async function stopNap(nap: NapActivity): Promise<Activity> {
+  return updateActivity(nap.id, { date: nap.date, endedAt: Date.now() });
+}
+
+export async function logFeed(profileId: string, side: FeedSide): Promise<Activity> {
+  const data = await jsonFetch<{ activity: Activity }>("/api/activities", {
+    method: "POST",
+    body: JSON.stringify({ type: "feed", side, profileId: profileId || undefined }),
+  });
+  emit("activities");
+  return data.activity;
+}
+
+export async function updateActivity(
+  id: string,
+  patch: {
+    date: string;
+    startedAt?: number;
+    endedAt?: number | null;
+    side?: FeedSide;
+    at?: number;
+  },
+): Promise<Activity> {
+  const data = await jsonFetch<{ activity: Activity }>(`/api/activities/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  emit("activities");
+  return data.activity;
+}
+
+export async function deleteActivity(id: string, date: string): Promise<void> {
+  await jsonFetch(`/api/activities/${id}?date=${encodeURIComponent(date)}`, { method: "DELETE" });
+  emit("activities");
 }
 
 export function onChange(
