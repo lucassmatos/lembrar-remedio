@@ -549,6 +549,40 @@ Mensagens enviadas há mais de 48h não podem ser editadas. A chamada
 ignorado silenciosamente (log de warning). O log da dose é salvo
 independentemente. Usuário pode ver o status atualizado abrindo o app.
 
+## Trade-offs aplicados na implementação
+
+Decisões tomadas durante o build que divergem ou concretizam o spec:
+
+- **Aceite de convite usa escritas sequenciais, não `TransactWriteItems`.**
+  `acceptInvite` faz put do Profile (sharedWith + version bump) e do link
+  record em chamadas separadas. Justificativa: aceite roda uma vez por
+  convite, fora de concorrência quente; e o TransactWrite tem limite de 25
+  itens que o modo parceiro poderia estourar. Se aparecer inconsistência na
+  prática, migrar pra TransactWrite por-perfil (2 itens, cabe folgado).
+
+- **Lookup de ownerSub via sentinela `profile#<id>/meta`.** Em vez de criar
+  um GSI `profileId → ownerSub`, `putProfile` e a migração gravam um item
+  sentinela `pk=profile#<id>, sk=meta` com `{ ownerSub, profileId }`. O
+  `schedule-sync` lê ele pra resolver o owner a partir do stream event.
+
+- **`messages` map persistido via Get-then-Put, não UpdateExpression aninhada.**
+  O dev-store (test harness) não suporta `SET messages.#key = :val` em path
+  aninhado. `notify-one` lê o registro `notified`, mescla o map e regrava.
+  Funciona igual em prod e é testável localmente.
+
+- **`takenByName` gravado junto de `takenBy` no log.** Pra mostrar "marcado
+  por Maria" na UI e no card do Telegram sem precisar de um diretório de
+  nomes (não há lookup sub → nome). O nome vem da sessão (web) ou do
+  `config.name` (webhook) no momento da marcação.
+
+- **Timezone no webhook usa o fuso de quem clica, não do owner.** Ao marcar
+  via botão do Telegram, o `date` usa `getConfig(sub).timezone` do clicador.
+  Aceitável: perfis compartilhados costumam estar no mesmo fuso, e o clique
+  acontece perto do horário da dose.
+
+- **Notificação só por Telegram.** Push do PWA foi descontinuado (entregava
+  mal, especialmente iOS). README e UI atualizados pra refletir.
+
 ## Testes a cobrir no plan
 
 - Unitários:

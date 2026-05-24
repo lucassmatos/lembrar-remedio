@@ -11,10 +11,12 @@ no horário, escaneia receita com foto.
 - **Vacinas e retornos** com data marcada e avisos antes (30/15/7 dias) +
   cobrança depois ("já agendou?").
 - **Múltiplos perfis** — cadastra medicamentos pra você, esposa, filho, mãe.
+- **Compartilhar perfis** — divida o cuidado de uma pessoa com um parceiro
+  (vê tudo) ou um cuidador/babá (vê só os perfis que você escolher). Quem
+  marcar a dose, todo mundo vê.
 - **Notificação por Telegram** quando chega a hora. Botão pra marcar tomado
-  direto no chat.
-- **Notificação local** (Web Notifications) enquanto o app está aberto ou
-  instalado como PWA.
+  direto no chat. Quando um membro marca, o card dos outros vira "✅ fulano
+  marcou".
 - **Escanear receita** com a câmera — OpenAI lê a posologia e cadastra os
   medicamentos (você usa sua própria chave).
 
@@ -34,15 +36,25 @@ por TTL automático.
 
 ## Notificações
 
-| Plataforma | App aberto / PWA ativo | App fechado |
-|---|---|---|
-| Telegram (pareado) | ✓ | ✓ |
-| Chrome desktop sem Telegram | ✓ | — |
-| Android Chrome PWA sem Telegram | ✓ | — |
-| iOS Safari PWA sem Telegram (16.4+) | ✓ | — |
+Aviso é **só por Telegram**. Sem Telegram pareado você não recebe nada ativo,
+só vê os lembretes ao abrir o app. Parear em **Ajustes → Conectar Telegram**.
 
-Pra ter aviso com app fechado, parear Telegram em **Ajustes → Conectar
-Telegram**.
+Num perfil compartilhado, todos os membros pareados recebem o aviso. Quando
+um marca a dose, o card dos outros é editado pra "✅ fulano marcou" — sem
+cobrança fantasma.
+
+## Compartilhar
+
+Em **Ajustes → Compartilhar**:
+
+- **Parceiro(a)** — compartilha *todos* os seus perfis, atuais e futuros.
+  Caso clássico: casal cuidando do filho. Ambos editam, marcam dose, veem tudo.
+- **Cuidador** — compartilha perfis específicos. A babá vê só os filhos, não
+  os seus remédios. Cuidador pode marcar dose, mas não edita nem adiciona.
+
+O convite é um link com código (válido 24h), igual ao pareamento do Telegram.
+Qualquer um pode sair ou ser removido depois. Convite de cuidador é amarrado
+ao email de quem você convidou.
 
 ## Rodar local
 
@@ -107,9 +119,11 @@ app/
   _components/                forms, listas, telegram panel
 lib/
   schedule.ts                 geração de slots, timezone
-  next-dose.ts                cálculo da próxima ocorrência por usuário
-  ddb.ts                      DynamoDB wrapper
-  notify-one.ts               envio de uma notificação (compartilhada Next + Lambda)
+  next-dose.ts                cálculo da próxima ocorrência por perfil
+  ddb.ts                      DynamoDB wrapper (partição por perfil)
+  sharing.ts                  acesso a perfil, convite, papéis
+  profile-keys.ts             chaves de mapa DDB sanitizadas
+  notify-one.ts               envio de notificação a todos os membros do perfil
   openai.ts                   parser de receita
   telegram.ts                 cliente Telegram Bot API
   api.ts                      wrapper client-side
@@ -117,8 +131,9 @@ infra/
   bin/app.ts                  entry CDK
   lib/data-stack.ts           DDB table + stream
   lib/compute-stack.ts        Lambdas + IAM
-  lambda/notify-user/         dispara as notificações pendentes do user
-  lambda/schedule-sync/       reage ao DDB stream, mantém schedule por user
+  lambda/notify-dose/         dispara as notificações pendentes de um perfil
+  lambda/schedule-sync/       reage ao DDB stream, mantém schedule por perfil
+  scripts/                    migração + cleanup de schedules
 public/
   sw.js                       service worker (cache + notification click)
   manifest.webmanifest
@@ -130,7 +145,10 @@ Pra cumprir LGPD, eis a lista honesta do que fica guardado:
 
 - **Da conta Google**: email, nome, ID estável (`sub`).
 - **Lembretes**: nome, dosagem, horários, duração, perfil associado.
-- **Adesão**: quais doses você marcou como tomadas/puladas (expira em 60d).
+- **Adesão**: quais doses você marcou como tomadas/puladas, e quem marcou
+  (nome) em perfil compartilhado (expira em 60d).
+- **Compartilhamento**: com quem você divide cada perfil e qual o papel
+  (parceiro/cuidador). Sai ao remover o membro ou apagar a conta.
 - **Telegram**: o `chat_id` se você parear (pode desvincular a qualquer
   momento mandando `/desvincular` no bot).
 - **Receita escaneada**: a foto vai pra OpenAI usando *sua* chave (BYOK) e
@@ -140,8 +158,7 @@ Pra apagar tudo: **Ajustes → Apagar minha conta**.
 
 ## Limitações
 
-- iOS exige PWA instalada pra notificação funcionar.
-- Sem Telegram, com tudo fechado, browser não roda nada em background — a
-  notificação chega quando você abre.
+- Notificação ativa só via Telegram. Sem parear, você só vê os lembretes ao
+  abrir o app.
 - Escanear receita só faz sentido em português brasileiro (o prompt é
   hard-coded em pt-BR).
