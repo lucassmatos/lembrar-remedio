@@ -192,3 +192,41 @@ export function nowInTz(tz: string): {
   const { date, minutes } = dateInTz(Date.now(), tz);
   return { date, minutes, iso: new Date().toISOString() };
 }
+
+/** Offset (ms) entre o relógio de parede no fuso `tz` e o UTC, no instante dado. */
+function tzOffsetMs(utcMs: number, tz: string): number {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(
+    fmt.formatToParts(new Date(utcMs)).map((p) => [p.type, p.value]),
+  );
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour === "24" ? "00" : parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return asUtc - utcMs;
+}
+
+/**
+ * Converte um relógio de parede local (date "YYYY-MM-DD" + time "HH:MM" no fuso
+ * `tz`) para epoch ms. Inverso de `dateInTz`/`clock`. Fora de transições de DST
+ * (o Brasil não usa mais), é exato.
+ */
+export function epochFromLocal(date: string, time: string, tz: string): number {
+  const [y, mo, d] = date.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  return guess - tzOffsetMs(guess, tz);
+}

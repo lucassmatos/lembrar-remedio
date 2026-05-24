@@ -1,6 +1,6 @@
 "use client";
 
-import type { Activity, Config, DayLog, FeedSide, NapActivity, Profile, Reminder } from "./types";
+import type { Activity, BottleContent, Config, DayLog, FeedSide, NapActivity, Profile, Reminder } from "./types";
 
 const EVT = "lr:change";
 type Scope = "reminders" | "config" | "log" | "profiles" | "activities";
@@ -151,10 +151,15 @@ export async function stopNap(nap: NapActivity): Promise<Activity> {
   return updateActivity(nap.id, { date: nap.date, endedAt: Date.now() });
 }
 
-export async function logFeed(profileId: string, side: FeedSide): Promise<Activity> {
+export type FeedInput =
+  | { method: "breast"; side: FeedSide }
+  | { method: "bottle"; amountMl: number; content: BottleContent }
+  | { method: "pump"; amountMl: number; side: FeedSide };
+
+export async function logFeed(profileId: string, input: FeedInput): Promise<Activity> {
   const data = await jsonFetch<{ activity: Activity }>("/api/activities", {
     method: "POST",
-    body: JSON.stringify({ type: "feed", side, profileId: profileId || undefined }),
+    body: JSON.stringify({ type: "feed", profileId: profileId || undefined, ...input }),
   });
   emit("activities");
   return data.activity;
@@ -167,6 +172,8 @@ export async function updateActivity(
     startedAt?: number;
     endedAt?: number | null;
     side?: FeedSide;
+    amountMl?: number;
+    content?: BottleContent;
     at?: number;
   },
 ): Promise<Activity> {

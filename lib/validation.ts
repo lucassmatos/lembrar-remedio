@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
-import { FEED_SIDES, PROFILE_COLORS, REMINDER_KINDS } from "./types";
+import { BOTTLE_CONTENTS, FEED_METHODS, FEED_SIDES, PROFILE_COLORS, REMINDER_KINDS } from "./types";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -149,24 +149,50 @@ export const ProfilePatchSchema = z
 export type ProfilePatch = z.infer<typeof ProfilePatchSchema>;
 
 const EpochMs = z.number().int().positive();
+const AmountMl = z.number().int().min(1).max(2000);
 
-export const ActivityPostSchema = z.discriminatedUnion("type", [
-  z
-    .object({
-      type: z.literal("nap"),
-      profileId: z.string().regex(ID).optional(),
-      startedAt: EpochMs.optional(),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("feed"),
-      profileId: z.string().regex(ID).optional(),
-      side: z.enum(FEED_SIDES),
-      at: EpochMs.optional(),
-    })
-    .strict(),
-]);
+export const ActivityPostSchema = z
+  .discriminatedUnion("type", [
+    z
+      .object({
+        type: z.literal("nap"),
+        profileId: z.string().regex(ID).optional(),
+        startedAt: EpochMs.optional(),
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("feed"),
+        profileId: z.string().regex(ID).optional(),
+        method: z.enum(FEED_METHODS),
+        side: z.enum(FEED_SIDES).optional(),
+        amountMl: AmountMl.optional(),
+        content: z.enum(BOTTLE_CONTENTS).optional(),
+        at: EpochMs.optional(),
+      })
+      .strict(),
+  ])
+  .superRefine((d, ctx) => {
+    if (d.type !== "feed") return;
+    const need = (field: "side" | "amountMl" | "content", ok: boolean) => {
+      if (!ok) {
+        ctx.addIssue({
+          code: "custom",
+          message: `${field} obrigatório para método ${d.method}`,
+          path: [field],
+        });
+      }
+    };
+    if (d.method === "breast") need("side", d.side != null);
+    if (d.method === "bottle") {
+      need("amountMl", d.amountMl != null);
+      need("content", d.content != null);
+    }
+    if (d.method === "pump") {
+      need("amountMl", d.amountMl != null);
+      need("side", d.side != null);
+    }
+  });
 export type ActivityPost = z.infer<typeof ActivityPostSchema>;
 
 export const ActivityPatchSchema = z
@@ -175,6 +201,8 @@ export const ActivityPatchSchema = z
     startedAt: EpochMs.optional(),
     endedAt: EpochMs.nullable().optional(),
     side: z.enum(FEED_SIDES).optional(),
+    amountMl: AmountMl.optional(),
+    content: z.enum(BOTTLE_CONTENTS).optional(),
     at: EpochMs.optional(),
   })
   .strict();

@@ -43,6 +43,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   } else {
     if (body.at !== undefined) updated.at = body.at;
     if (body.side !== undefined) updated.side = body.side;
+    if (body.amountMl !== undefined) updated.amountMl = body.amountMl;
+    if (body.content !== undefined) updated.content = body.content;
     updated.date = dateInTz(updated.at, tz).date;
   }
 

@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { Shell } from "./_components/shell";
 import { Timeline } from "./_components/timeline";
-import { getConfig, getProfiles, getReminders, onChange } from "@/lib/api";
+import { getActivities, getConfig, getProfiles, getReminders, onChange } from "@/lib/api";
 import { nowInTz } from "@/lib/schedule";
-import type { Profile, Reminder } from "@/lib/types";
+import type { NapActivity, Profile, Reminder } from "@/lib/types";
 
 const WEEKDAY = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 const MONTH = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -13,6 +13,7 @@ const MONTH = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 export default function TimelinePage() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [openNaps, setOpenNaps] = useState<NapActivity[]>([]);
   const [mounted, setMounted] = useState(false);
   const [tz, setTz] = useState("America/Sao_Paulo");
   const [date, setDate] = useState("");
@@ -29,8 +30,11 @@ export default function TimelinePage() {
         ]);
         if (cancelled) return;
         const now = nowInTz(cfg.timezone);
+        const view = await getActivities(now.date).catch(() => null);
+        if (cancelled) return;
         setReminders(r);
         setProfiles(p);
+        setOpenNaps(view?.openNaps ?? []);
         setTz(cfg.timezone);
         setDate(now.date);
         setMinutes(now.minutes);
@@ -45,6 +49,7 @@ export default function TimelinePage() {
     const off2 = onChange("profiles", refresh);
     const off3 = onChange("config", refresh);
     const off4 = onChange("log", refresh);
+    const off5 = onChange("activities", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       cancelled = true;
@@ -53,6 +58,7 @@ export default function TimelinePage() {
       off2();
       off3();
       off4();
+      off5();
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
@@ -86,6 +92,7 @@ export default function TimelinePage() {
           tz={tz}
           reminders={reminders}
           profiles={profiles}
+          openNaps={openNaps}
           nowMinutes={minutes}
         />
       ) : null}

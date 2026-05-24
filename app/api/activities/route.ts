@@ -73,8 +73,11 @@ export async function POST(req: NextRequest) {
       profileId,
       date: dateInTz(at, tz).date,
       createdAt,
-      side: body.side,
       at,
+      method: body.method,
+      ...(body.side ? { side: body.side } : {}),
+      ...(body.amountMl != null ? { amountMl: body.amountMl } : {}),
+      ...(body.content ? { content: body.content } : {}),
     };
   }
 

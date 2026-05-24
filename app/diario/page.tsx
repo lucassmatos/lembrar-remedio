@@ -7,7 +7,7 @@ import { DiaryActions } from "../_components/diary-actions";
 import { ActivityList } from "../_components/activity-list";
 import { getActivities, getConfig, getProfiles, onChange } from "@/lib/api";
 import { nowInTz } from "@/lib/schedule";
-import { isFeed } from "@/lib/types";
+import { feedMethod, isFeed } from "@/lib/types";
 import type { Activity, FeedSide, NapActivity, Profile } from "@/lib/types";
 
 const SELECTED_KEY = "lr.profile.selected.v1";
@@ -78,7 +78,10 @@ export default function DiarioPage() {
   );
 
   const lastFeedSide = useMemo<FeedSide | undefined>(() => {
-    const feeds = visible.filter(isFeed).sort((a, b) => a.at - b.at);
+    const feeds = visible
+      .filter(isFeed)
+      .filter((f) => feedMethod(f) === "breast" && f.side)
+      .sort((a, b) => a.at - b.at);
     return feeds.length ? feeds[feeds.length - 1].side : undefined;
   }, [visible]);
 

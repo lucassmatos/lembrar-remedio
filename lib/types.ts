@@ -134,6 +134,12 @@ export const ACTIVITY_TYPES = ["nap", "feed"] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 export const FEED_SIDES = ["left", "right"] as const;
 export type FeedSide = (typeof FEED_SIDES)[number];
+// Como o bebê foi alimentado: peito (lado), mamadeira (ml + conteúdo) ou
+// extração da mãe (ml + lado). Registros legados não têm method = peito.
+export const FEED_METHODS = ["breast", "bottle", "pump"] as const;
+export type FeedMethod = (typeof FEED_METHODS)[number];
+export const BOTTLE_CONTENTS = ["formula", "breastmilk"] as const;
+export type BottleContent = (typeof BOTTLE_CONTENTS)[number];
 
 type BaseActivity = {
   id: string;
@@ -149,8 +155,11 @@ export type NapActivity = BaseActivity & {
 };
 export type FeedActivity = BaseActivity & {
   type: "feed";
-  side: FeedSide;
   at: number; // epoch ms do registro
+  method?: FeedMethod; // ausente em registros legados = "breast"
+  side?: FeedSide; // peito e extração
+  amountMl?: number; // mamadeira e extração
+  content?: BottleContent; // mamadeira
 };
 export type Activity = NapActivity | FeedActivity;
 
@@ -159,6 +168,10 @@ export function isNap(a: Activity): a is NapActivity {
 }
 export function isFeed(a: Activity): a is FeedActivity {
   return a.type === "feed";
+}
+/** Método da mamada, tratando registros legados (sem method) como peito. */
+export function feedMethod(a: FeedActivity): FeedMethod {
+  return a.method ?? "breast";
 }
 export function isOngoingNap(a: Activity): a is NapActivity {
   return isNap(a) && a.endedAt == null;

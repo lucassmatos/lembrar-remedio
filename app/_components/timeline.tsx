@@ -17,10 +17,12 @@ import {
 import type {
   DayLog,
   DoseSlot,
+  NapActivity,
   OneShotSchedule,
   Profile,
   Reminder,
 } from "@/lib/types";
+import { clock, formatDuration } from "@/lib/activity";
 import { ProfileBadge } from "./profile-badge";
 
 type Props = {
@@ -28,6 +30,7 @@ type Props = {
   tz: string;
   reminders: Reminder[];
   profiles?: Profile[];
+  openNaps?: NapActivity[];
   nowMinutes: number;
 };
 
@@ -49,7 +52,7 @@ type OneShotEntry = {
   daysAway: number;
 };
 
-export function Timeline({ date, tz, reminders, profiles = [], nowMinutes }: Props) {
+export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], nowMinutes }: Props) {
   const profileById = useMemo(
     () => new Map(profiles.map((p) => [p.id, p])),
     [profiles],
@@ -137,6 +140,14 @@ export function Timeline({ date, tz, reminders, profiles = [], nowMinutes }: Pro
 
   return (
     <div>
+      {openNaps.length > 0 ? (
+        <SleepingBanner
+          naps={openNaps}
+          tz={tz}
+          profileById={showProfile ? profileById : undefined}
+        />
+      ) : null}
+
       <section className="mb-12">
         <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
           Hoje
@@ -186,6 +197,56 @@ export function Timeline({ date, tz, reminders, profiles = [], nowMinutes }: Pro
         </section>
       ) : null}
     </div>
+  );
+}
+
+function SleepingBanner({
+  naps,
+  tz,
+  profileById,
+}: {
+  naps: NapActivity[];
+  tz: string;
+  profileById?: Map<string, Profile>;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <section className="mb-8 grid gap-2">
+      {naps.map((nap) => {
+        const profile = profileById?.get(nap.profileId);
+        return (
+          <div
+            key={nap.id}
+            className="flex items-center gap-3 rounded-2xl border border-edge px-5 py-4"
+            style={{ background: "var(--color-paper-2)" }}
+          >
+            <span
+              aria-hidden
+              className="text-[22px] leading-none"
+              style={{ animation: "ring-pulse 2.4s ease-in-out infinite", borderRadius: 12 }}
+            >
+              😴
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 font-display text-[19px] tracking-tight text-ink">
+                {profile ? <ProfileBadge profile={profile} size={20} /> : null}
+                <span className="truncate">
+                  {profile ? `${profile.name} dormindo` : "dormindo agora"}
+                </span>
+              </div>
+              <div className="mt-0.5 text-[13px] text-ink-soft tnum">
+                desde {clock(nap.startedAt, tz)} · {formatDuration(now - nap.startedAt)}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

@@ -9,15 +9,34 @@ describe("ActivityPostSchema", () => {
     const r = ActivityPostSchema.safeParse({ type: "nap", profileId: "abc123", startedAt: 1_700_000_000_000 });
     expect(r.success).toBe(true);
   });
-  it("mamada exige lado", () => {
+  it("feed exige method", () => {
     expect(ActivityPostSchema.safeParse({ type: "feed" }).success).toBe(false);
-    expect(ActivityPostSchema.safeParse({ type: "feed", side: "left" }).success).toBe(true);
+    expect(ActivityPostSchema.safeParse({ type: "feed", side: "left" }).success).toBe(false);
+  });
+  it("peito exige lado", () => {
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "breast" }).success).toBe(false);
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "breast", side: "left" }).success).toBe(true);
+  });
+  it("mamadeira exige ml e conteúdo", () => {
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "bottle", amountMl: 120 }).success).toBe(false);
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "bottle", amountMl: 120, content: "formula" }).success).toBe(true);
+  });
+  it("extração exige ml e lado", () => {
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "pump", amountMl: 90 }).success).toBe(false);
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "pump", amountMl: 90, side: "right" }).success).toBe(true);
+  });
+  it("rejeita ml fora do intervalo", () => {
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "bottle", amountMl: 0, content: "formula" }).success).toBe(false);
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "bottle", amountMl: 9999, content: "formula" }).success).toBe(false);
   });
   it("rejeita type desconhecido", () => {
     expect(ActivityPostSchema.safeParse({ type: "diaper" }).success).toBe(false);
   });
+  it("rejeita método inválido", () => {
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "telepatia", side: "left" }).success).toBe(false);
+  });
   it("rejeita lado inválido", () => {
-    expect(ActivityPostSchema.safeParse({ type: "feed", side: "middle" }).success).toBe(false);
+    expect(ActivityPostSchema.safeParse({ type: "feed", method: "breast", side: "middle" }).success).toBe(false);
   });
   it("rejeita campos extras (strict)", () => {
     expect(ActivityPostSchema.safeParse({ type: "nap", foo: 1 }).success).toBe(false);
