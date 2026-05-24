@@ -14,8 +14,11 @@ import type {
   Config,
   DayLog,
   NapActivity,
+  PartnerRecord,
   Profile,
   ProfileColor,
+  ProfileShareLink,
+  ProfileShareRole,
   Reminder,
   ReminderStatus,
 } from "./types";
@@ -48,12 +51,14 @@ const doc = (isDevLocal() ? devDoc : realDoc) as typeof realDoc;
 
 const PK = {
   user: (sub: string) => `user#${sub}`,
+  profile: (profileId: string) => `profile#${profileId}`,
   pair: (token: string) => `pair#${token}`,
   chat: (chatId: number) => `chat#${chatId}`,
   users: "users",
 };
 const SK = {
   config: "config",
+  partner: "partner",
   reminder: (id: string) => `reminder#${id}`,
   profile: (id: string) => `profile#${id}`,
   log: (date: string) => `log#${date}`,
@@ -62,6 +67,8 @@ const SK = {
   pair: "pair",
   chat: "chat",
   userIndex: (sub: string) => `user#${sub}`,
+  shareLink: (ownerSub: string, profileId: string) =>
+    `shared#${ownerSub}#${profileId}`,
 };
 
 export async function ensureUser(
@@ -115,6 +122,9 @@ export async function ensureDefaultProfile(
     color: "sage",
     isDefault: true,
     createdAt: Date.now(),
+    ownerSub: sub,
+    sharedWith: [],
+    version: 1,
   };
   await putProfile(sub, profile);
   return profile;
@@ -129,17 +139,40 @@ export async function listProfiles(sub: string): Promise<Profile[]> {
     }),
   );
   const items = (res.Items ?? []).map(stripKeys<Profile>);
-  return items.sort((a, b) => a.createdAt - b.createdAt);
+  return items.map((p) => ({
+    ...p,
+    ownerSub: p.ownerSub ?? sub,
+    sharedWith: p.sharedWith ?? [],
+    version: p.version ?? 1,
+  })).sort((a, b) => a.createdAt - b.createdAt);
 }
 
-export async function putProfile(sub: string, profile: Profile): Promise<Profile> {
+export async function putProfile(ownerSub: string, profile: Profile): Promise<Profile> {
+  const enriched: Profile = {
+    ...profile,
+    ownerSub: profile.ownerSub ?? ownerSub,
+    sharedWith: profile.sharedWith ?? [],
+    version: profile.version ?? 1,
+  };
   await doc.send(
     new PutCommand({
       TableName: TABLE,
-      Item: { pk: PK.user(sub), sk: SK.profile(profile.id), ...profile },
+      Item: { pk: PK.user(ownerSub), sk: SK.profile(profile.id), ...enriched },
     }),
   );
-  return profile;
+  // Profile-meta sentinel for schedule-sync ownerSub lookup (no GSI).
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: {
+        pk: PK.profile(profile.id),
+        sk: "meta",
+        ownerSub: enriched.ownerSub,
+        profileId: profile.id,
+      },
+    }),
+  );
+  return enriched;
 }
 
 export async function deleteProfileCascade(sub: string, profileId: string): Promise<void> {
@@ -566,3 +599,224 @@ function stripKeys<T>(item: Record<string, unknown>): T {
   delete copy.sk;
   return copy as T;
 }
+
+// ── Profile-scoped reminder helpers ─────────────────────────────────────────
+
+export async function listRemindersForProfile(profileId: string): Promise<Reminder[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.profile(profileId), ":sk": "reminder#" },
+    }),
+  );
+  return (res.Items ?? []).map(stripKeys<Reminder>);
+}
+
+export async function getReminderForProfile(profileId: string, id: string): Promise<Reminder | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.profile(profileId), sk: SK.reminder(id) } }),
+  );
+  return res.Item ? stripKeys<Reminder>(res.Item) : null;
+}
+
+export async function putReminderForProfile(reminder: Reminder): Promise<Reminder> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.profile(reminder.profileId), sk: SK.reminder(reminder.id), ...reminder },
+    }),
+  );
+  return reminder;
+}
+
+export async function deleteReminderForProfile(profileId: string, id: string): Promise<void> {
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.profile(profileId), sk: SK.reminder(id) },
+    }),
+  );
+}
+
+// ── Profile-scoped log helpers ───────────────────────────────────────────────
+
+export async function getLogForProfile(profileId: string, date: string): Promise<DayLog> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.profile(profileId), sk: SK.log(date) } }),
+  );
+  if (!res.Item) return {};
+  const log = { ...(res.Item as Record<string, unknown>) };
+  delete log.pk; delete log.sk; delete log.ttl;
+  return log as DayLog;
+}
+
+export async function setLogEntryForProfile(
+  profileId: string,
+  date: string,
+  slotKey: string,
+  taken: boolean,
+  takenBy: string,
+): Promise<DayLog> {
+  const log = await getLogForProfile(profileId, date);
+  if (taken) log[slotKey] = { taken: true, takenAt: Date.now(), takenBy };
+  else delete log[slotKey];
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: {
+        pk: PK.profile(profileId),
+        sk: SK.log(date),
+        ...log,
+        ttl: Math.floor(Date.now() / 1000) + 60 * 24 * 60 * 60,
+      },
+    }),
+  );
+  return log;
+}
+
+// ── Profile-scoped notified helpers ─────────────────────────────────────────
+
+export async function getNotifiedKeysForProfile(profileId: string, date: string): Promise<Set<string>> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.profile(profileId), sk: SK.notified(date) } }),
+  );
+  const keys = (res.Item?.keys ?? []) as string[];
+  return new Set(keys);
+}
+
+export async function markNotifiedForProfile(
+  profileId: string,
+  date: string,
+  slotKey: string,
+): Promise<boolean> {
+  const ttl = Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60;
+  try {
+    await doc.send(
+      new UpdateCommand({
+        TableName: TABLE,
+        Key: { pk: PK.profile(profileId), sk: SK.notified(date) },
+        UpdateExpression: "SET #keys = list_append(if_not_exists(#keys, :empty), :new), #ttl = :ttl",
+        ConditionExpression: "attribute_not_exists(#keys) OR NOT contains(#keys, :slotKey)",
+        ExpressionAttributeNames: { "#keys": "keys", "#ttl": "ttl" },
+        ExpressionAttributeValues: {
+          ":empty": [] as string[],
+          ":new": [slotKey],
+          ":slotKey": slotKey,
+          ":ttl": ttl,
+        },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") {
+      return false;
+    }
+    throw e;
+  }
+}
+
+// ── Share link helpers ───────────────────────────────────────────────────────
+
+export type ProfileWithAccess = {
+  profile: Profile;
+  accessRole: "owner" | "partner" | "caregiver";
+};
+
+export async function listShareLinks(viewerSub: string): Promise<ProfileShareLink[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.user(viewerSub), ":sk": "shared#" },
+    }),
+  );
+  return (res.Items ?? []).map((it) => ({
+    ownerSub: it.ownerSub as string,
+    profileId: it.profileId as string,
+    role: it.role as ProfileShareRole,
+    addedAt: it.addedAt as number,
+  }));
+}
+
+export async function putShareLink(viewerSub: string, link: ProfileShareLink): Promise<void> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: {
+        pk: PK.user(viewerSub),
+        sk: SK.shareLink(link.ownerSub, link.profileId),
+        ...link,
+      },
+    }),
+  );
+}
+
+export async function deleteShareLink(viewerSub: string, ownerSub: string, profileId: string): Promise<void> {
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(viewerSub), sk: SK.shareLink(ownerSub, profileId) },
+    }),
+  );
+}
+
+export async function listProfilesForUser(sub: string): Promise<ProfileWithAccess[]> {
+  const [own, links] = await Promise.all([listProfiles(sub), listShareLinks(sub)]);
+  const ownEntries: ProfileWithAccess[] = own.map((p) => ({ profile: p, accessRole: "owner" }));
+  const fetched = await Promise.all(
+    links.map(async (l) => {
+      const res = await doc.send(
+        new GetCommand({
+          TableName: TABLE,
+          Key: { pk: PK.user(l.ownerSub), sk: SK.profile(l.profileId) },
+        }),
+      );
+      if (!res.Item) return null;
+      const profile = stripKeys<Profile>(res.Item);
+      return {
+        profile: {
+          ...profile,
+          ownerSub: profile.ownerSub ?? l.ownerSub,
+          sharedWith: profile.sharedWith ?? [],
+          version: profile.version ?? 1,
+        },
+        accessRole: l.role,
+      } as ProfileWithAccess;
+    }),
+  );
+  return [...ownEntries, ...fetched.filter((x): x is ProfileWithAccess => x !== null)];
+}
+
+// ── Partner record CRUD ──────────────────────────────────────────────────────
+
+export async function setPartner(sub: string, p: PartnerRecord): Promise<void> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.user(sub), sk: SK.partner, ...p },
+    }),
+  );
+}
+
+export async function getPartner(sub: string): Promise<PartnerRecord | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.partner } }),
+  );
+  if (!res.Item) return null;
+  const it = res.Item;
+  return {
+    partnerSub: it.partnerSub as string,
+    partnerEmail: it.partnerEmail as string | undefined,
+    partnerName: it.partnerName as string | undefined,
+    since: it.since as number,
+  };
+}
+
+export async function deletePartner(sub: string): Promise<void> {
+  await doc.send(
+    new DeleteCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.partner } }),
+  );
+}
+
+export const _internal = { PK, SK, doc, TABLE };
