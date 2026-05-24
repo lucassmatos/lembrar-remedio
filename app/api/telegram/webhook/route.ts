@@ -160,12 +160,22 @@ async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
       return;
     }
     // Record takenBy=sub so we know which member marked it.
-    await setLogEntryForProfile(found.profileId, date, slotKey, taken, sub);
+    await setLogEntryForProfile(found.profileId, date, slotKey, taken, sub, cfg.name ?? undefined);
     await answerCallback(cq.id, taken ? "Marcado ✓" : "Pulado");
     if (cq.message) {
       const newText =
         (cq.message.text || "") + (taken ? "\n\n<b>✓ Tomado</b>" : "\n\n<b>— Pulado</b>");
       await editMessage({ chatId: chat.id, messageId: cq.message.message_id, text: newText });
+    }
+    if (taken) {
+      const { notifyOtherMembersOfTaken } = await import("@/lib/notify-one");
+      notifyOtherMembersOfTaken({
+        profileId: found.profileId,
+        date,
+        slotKey,
+        takenBySub: sub,
+        takenByName: cfg.name ?? null,
+      }).catch((e: unknown) => console.warn("[webhook] notifyOtherMembersOfTaken failed:", e));
     }
     return;
   }

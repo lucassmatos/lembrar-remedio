@@ -237,6 +237,11 @@ function DoseRow({
                 tomado às {fmtTakenAt(slot.takenAt)}
               </>
             ) : null}
+            {slot.taken && slot.takenByName ? (
+              <div className="mt-0.5 text-[12px] text-ink-faint">
+                marcado por {slot.takenByName}
+              </div>
+            ) : null}
           </div>
         </div>
         <Indicator state={isAhead ? "ahead" : isNow ? "now" : isMissed ? "missed" : "done"} />

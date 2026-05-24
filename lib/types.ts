@@ -105,12 +105,14 @@ export type DoseSlot = {
   minutes: number;
   taken: boolean;
   takenAt?: number;
+  takenByName?: string;
 };
 
 export type DayLog = Record<string, {
   taken: boolean;
   takenAt: number;
   takenBy?: string;
+  takenByName?: string;
 }>;
 
 export function isMedication(

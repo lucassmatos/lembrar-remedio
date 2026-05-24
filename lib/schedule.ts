@@ -89,6 +89,7 @@ export function todaySlots(
         minutes,
         taken: !!entry?.taken,
         takenAt: entry?.takenAt,
+        takenByName: entry?.takenByName,
       });
     }
   }

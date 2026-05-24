@@ -11,8 +11,8 @@ import {
   occurrenceKey,
   slotKey,
 } from "./schedule";
-import { escapeHtml, sendMessage } from "./telegram";
-import { sanitizeMessageKey } from "./profile-keys";
+import { editMessage, escapeHtml, sendMessage } from "./telegram";
+import { parseMessageKey, sanitizeMessageKey } from "./profile-keys";
 import type { Profile, Reminder } from "./types";
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 
@@ -262,4 +262,69 @@ async function sendOneShot(
 
   // sent:true if the claim was won.
   return { sent: true, key };
+}
+
+/**
+ * After a member marks a slot as taken, edit the Telegram notification messages
+ * of all OTHER members so they stop worrying.
+ *
+ * Reads the `messages` map stored at profile#<profileId>/notified#<date>,
+ * skips the entry for the member who marked it, and calls editMessage for each
+ * remaining member. Failures are swallowed per-entry — a stale or blocked
+ * message must never break the mark flow.
+ */
+export async function notifyOtherMembersOfTaken(args: {
+  profileId: string;
+  date: string;
+  slotKey: string;
+  takenBySub: string;
+  takenByName?: string | null;
+}): Promise<void> {
+  const { PK, SK, doc, TABLE } = _internal;
+  const { profileId, date, slotKey: sk, takenBySub, takenByName } = args;
+
+  let messages: Record<string, unknown>;
+  try {
+    const res = await doc.send(
+      new GetCommand({
+        TableName: TABLE,
+        Key: { pk: PK.profile(profileId), sk: SK.notified(date) },
+      }),
+    );
+    messages = ((res.Item?.messages ?? {}) as Record<string, unknown>);
+  } catch (e) {
+    console.warn("[notify-one] notifyOtherMembersOfTaken: failed to read notified record:", e);
+    return;
+  }
+
+  const displayName = takenByName ?? "Alguém";
+  const editText = `✅ ${escapeHtml(displayName)} marcou.`;
+
+  for (const [key, val] of Object.entries(messages)) {
+    // Decode the key to extract slotKey + sub.
+    let parsed: { slotKey: string; sub: string };
+    try {
+      parsed = parseMessageKey(key);
+    } catch {
+      // Malformed key — skip silently.
+      continue;
+    }
+
+    // Only edit messages for this slotKey and skip the taker's own message.
+    if (parsed.slotKey !== sk) continue;
+    if (parsed.sub === takenBySub) continue;
+
+    const ref = val as { chatId?: number; messageId?: number };
+    if (!ref.chatId || !ref.messageId) continue;
+
+    try {
+      await editMessage({ chatId: ref.chatId, messageId: ref.messageId, text: editText });
+    } catch (e) {
+      // Telegram errors (message too old, bot blocked, stale id) must be swallowed.
+      console.warn(
+        `[notify-one] notifyOtherMembersOfTaken: editMessage failed for sub=${parsed.sub}:`,
+        e,
+      );
+    }
+  }
 }

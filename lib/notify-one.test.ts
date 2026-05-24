@@ -16,16 +16,17 @@ vi.hoisted(() => {
 // Mock telegram before importing notify-one (which imports telegram).
 vi.mock("./telegram", () => ({
   sendMessage: vi.fn().mockResolvedValue({ message_id: 42 }),
+  editMessage: vi.fn().mockResolvedValue(undefined),
   escapeHtml: (s: string) => s,
 }));
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { _resetDevStore } from "./dev-store";
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { notifyOneDose } from "./notify-one";
+import { notifyOneDose, notifyOtherMembersOfTaken } from "./notify-one";
 import { setConfig, _internal } from "./ddb";
 import type { Reminder } from "./types";
-import { sendMessage } from "./telegram";
+import { sendMessage, editMessage } from "./telegram";
 
 const { PK, SK, doc, TABLE } = _internal;
 
@@ -100,6 +101,8 @@ beforeEach(() => {
   _resetDevStore();
   vi.mocked(sendMessage).mockClear();
   vi.mocked(sendMessage).mockResolvedValue({ message_id: 42 });
+  vi.mocked(editMessage).mockClear();
+  vi.mocked(editMessage).mockResolvedValue(undefined);
 });
 
 describe("notifyOneDose — med-slot", () => {
@@ -283,5 +286,139 @@ describe("notifyOneDose — med-slot", () => {
     });
     expect(result).toEqual({ sent: false, reason: "already taken" });
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+// ── Helper: build the sanitized key for a member ──────────────────────────────
+import { sanitizeMessageKey } from "./profile-keys";
+
+describe("notifyOtherMembersOfTaken", () => {
+  const SLOT_KEY = `${REMINDER_ID}@08:00`;
+
+  async function seedNotifiedWithMessages(
+    profileId: string,
+    date: string,
+    refs: Array<{ sub: string; chatId: number; messageId: number }>,
+  ) {
+    const messages: Record<string, unknown> = {};
+    for (const ref of refs) {
+      messages[sanitizeMessageKey(SLOT_KEY, ref.sub)] = {
+        chatId: ref.chatId,
+        messageId: ref.messageId,
+      };
+    }
+    await doc.send(
+      new PutCommand({
+        TableName: TABLE,
+        Item: {
+          pk: PK.profile(profileId),
+          sk: SK.notified(date),
+          keys: [SLOT_KEY],
+          messages,
+        },
+      }),
+    );
+  }
+
+  it("edits only OTHER members' messages (not the taker's)", async () => {
+    await seedNotifiedWithMessages(PROFILE_ID, NOW_DATE, [
+      { sub: OWNER_SUB, chatId: 1001, messageId: 101 },
+      { sub: VIEWER_SUB, chatId: 2002, messageId: 202 },
+    ]);
+
+    await notifyOtherMembersOfTaken({
+      profileId: PROFILE_ID,
+      date: NOW_DATE,
+      slotKey: SLOT_KEY,
+      takenBySub: OWNER_SUB,
+      takenByName: "Maria",
+    });
+
+    // Should have edited only VIEWER_SUB's message.
+    expect(editMessage).toHaveBeenCalledTimes(1);
+    expect(editMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId: 2002, messageId: 202, text: "✅ Maria marcou." }),
+    );
+  });
+
+  it("uses 'Alguém' when takenByName is null", async () => {
+    await seedNotifiedWithMessages(PROFILE_ID, NOW_DATE, [
+      { sub: OWNER_SUB, chatId: 1001, messageId: 101 },
+      { sub: VIEWER_SUB, chatId: 2002, messageId: 202 },
+    ]);
+
+    await notifyOtherMembersOfTaken({
+      profileId: PROFILE_ID,
+      date: NOW_DATE,
+      slotKey: SLOT_KEY,
+      takenBySub: OWNER_SUB,
+      takenByName: null,
+    });
+
+    expect(editMessage).toHaveBeenCalledTimes(1);
+    expect(editMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "✅ Alguém marcou." }),
+    );
+  });
+
+  it("swallows editMessage errors and does not reject", async () => {
+    await seedNotifiedWithMessages(PROFILE_ID, NOW_DATE, [
+      { sub: OWNER_SUB, chatId: 1001, messageId: 101 },
+      { sub: VIEWER_SUB, chatId: 2002, messageId: 202 },
+    ]);
+    vi.mocked(editMessage).mockRejectedValueOnce(new Error("Telegram: message too old"));
+
+    // Must resolve without throwing.
+    await expect(
+      notifyOtherMembersOfTaken({
+        profileId: PROFILE_ID,
+        date: NOW_DATE,
+        slotKey: SLOT_KEY,
+        takenBySub: OWNER_SUB,
+        takenByName: "Maria",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("does nothing when no notified record exists", async () => {
+    // No record seeded — should resolve without calling editMessage.
+    await expect(
+      notifyOtherMembersOfTaken({
+        profileId: "no-such-profile",
+        date: NOW_DATE,
+        slotKey: SLOT_KEY,
+        takenBySub: OWNER_SUB,
+        takenByName: "Maria",
+      }),
+    ).resolves.toBeUndefined();
+    expect(editMessage).not.toHaveBeenCalled();
+  });
+
+  it("skips keys that belong to a different slotKey", async () => {
+    const otherSlotKey = `${REMINDER_ID}@14:00`;
+    const messages: Record<string, unknown> = {
+      [sanitizeMessageKey(otherSlotKey, VIEWER_SUB)]: { chatId: 2002, messageId: 999 },
+    };
+    await doc.send(
+      new PutCommand({
+        TableName: TABLE,
+        Item: {
+          pk: PK.profile(PROFILE_ID),
+          sk: SK.notified(NOW_DATE),
+          keys: [otherSlotKey],
+          messages,
+        },
+      }),
+    );
+
+    await notifyOtherMembersOfTaken({
+      profileId: PROFILE_ID,
+      date: NOW_DATE,
+      slotKey: SLOT_KEY, // different from what's in the messages map
+      takenBySub: OWNER_SUB,
+      takenByName: "Maria",
+    });
+
+    expect(editMessage).not.toHaveBeenCalled();
   });
 });

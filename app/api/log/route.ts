@@ -67,6 +67,16 @@ export async function POST(req: NextRequest) {
 
   const cfg = await getConfig(s.sub);
   const effectiveDate = date ?? nowInTz(cfg.timezone).date;
-  const log = await setLogEntryForProfile(targetProfileId, effectiveDate, slotKey, taken, s.sub);
+  const log = await setLogEntryForProfile(targetProfileId, effectiveDate, slotKey, taken, s.sub, s.name ?? undefined);
+  if (taken) {
+    const { notifyOtherMembersOfTaken } = await import("@/lib/notify-one");
+    notifyOtherMembersOfTaken({
+      profileId: targetProfileId,
+      date: effectiveDate,
+      slotKey,
+      takenBySub: s.sub,
+      takenByName: s.name ?? null,
+    }).catch((e: unknown) => console.warn("[log/route] notifyOtherMembersOfTaken failed:", e));
+  }
   return NextResponse.json({ date: effectiveDate, log });
 }

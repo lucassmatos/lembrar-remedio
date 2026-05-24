@@ -806,9 +806,10 @@ export async function setLogEntryForProfile(
   slotKey: string,
   taken: boolean,
   takenBy: string,
+  takenByName?: string,
 ): Promise<DayLog> {
   const log = await getLogForProfile(profileId, date);
-  if (taken) log[slotKey] = { taken: true, takenAt: Date.now(), takenBy };
+  if (taken) log[slotKey] = { taken: true, takenAt: Date.now(), takenBy, ...(takenByName ? { takenByName } : {}) };
   else delete log[slotKey];
   await doc.send(
     new PutCommand({
