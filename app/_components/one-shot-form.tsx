@@ -85,7 +85,7 @@ export function OneShotForm({
     e.preventDefault();
     setErr(null);
     if (!title.trim()) {
-      setErr(kind === "vaccine" ? "Dá um nome pra vacina." : "Dá um nome pra consulta.");
+      setErr(kind === "vaccine" ? "Dá um nome pra vacina." : "Dá o nome do médico.");
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -138,9 +138,10 @@ export function OneShotForm({
     }
   }
 
-  const titlePlaceholder = kind === "vaccine" ? "Influenza 2026" : "Cardiologista Dr. Silva";
-  const subtitlePlaceholder =
-    kind === "vaccine" ? "tetra viral" : "Hosp. São Luiz, sala 302";
+  const titlePlaceholder = kind === "vaccine" ? "Influenza 2026" : "Dr. Silva";
+  const subtitlePlaceholder = kind === "vaccine" ? "tetra viral" : "Cardiologista";
+  const titleLabel = kind === "appointment" ? "Nome do médico" : "Nome";
+  const subtitleLabel = kind === "vaccine" ? "Detalhe" : "Especialidade";
 
   return (
     <form onSubmit={submit} className="space-y-7">
@@ -168,7 +169,7 @@ export function OneShotForm({
 
       <div>
         <label className="mb-2 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
-          Nome
+          {titleLabel}
         </label>
         <input
           autoFocus
@@ -182,7 +183,7 @@ export function OneShotForm({
 
       <div>
         <label className="mb-2 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
-          {kind === "vaccine" ? "Detalhe" : "Local / médico"}
+          {subtitleLabel}
         </label>
         <input
           value={subtitle}

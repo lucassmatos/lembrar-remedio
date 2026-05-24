@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  applicableLeads,
   daysBetween,
-  formatBrDate,
-  oneShotOccurrences,
+  effectiveStatus,
   slotKey,
   todaySlots,
 } from "@/lib/schedule";
@@ -21,6 +21,8 @@ import type {
   OneShotSchedule,
   Profile,
   Reminder,
+  ReminderKind,
+  ReminderStatus,
 } from "@/lib/types";
 import { clock, formatDuration } from "@/lib/activity";
 import { ProfileBadge } from "./profile-badge";
@@ -46,10 +48,10 @@ const KIND_META = {
 type OneShotEntry = {
   reminder: Reminder;
   schedule: OneShotSchedule;
-  fireDate: string;
-  fireTime: string;
-  lead: number;
-  daysAway: number;
+  eventDate: string;
+  eventDays: number;
+  status: ReminderStatus;
+  needsAttention: boolean;
 };
 
 export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], nowMinutes }: Props) {
@@ -88,31 +90,36 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
     [meds, log, date, tz],
   );
 
+  // Uma linha por evento (consulta/vacina), não por aviso. A data exibida é a do
+  // evento, nunca a do aviso. Não-agendados entram em "Hoje" assim que a janela de
+  // aviso abre (D-maxLead, ex. D-30) pra forçar a marcar; agendados só na véspera/dia.
   const oneShotItems = useMemo<OneShotEntry[]>(() => {
     const out: OneShotEntry[] = [];
     for (const r of reminders) {
       if (r.schedule.type !== "one-shot") continue;
-      if (r.status === "done") continue;
-      for (const occ of oneShotOccurrences(r)) {
-        const days = daysBetween(date, occ.date);
-        if (days < 0) continue;
-        if (days > HORIZON_DAYS) continue;
-        out.push({
-          reminder: r,
-          schedule: r.schedule,
-          fireDate: occ.date,
-          fireTime: occ.time,
-          lead: occ.lead,
-          daysAway: days,
-        });
-      }
+      const status = effectiveStatus(r);
+      if (status === "done") continue;
+      const eventDate = r.schedule.date;
+      const eventDays = daysBetween(date, eventDate);
+      if (eventDays < 0) continue;
+      if (eventDays > HORIZON_DAYS) continue;
+      const leads = applicableLeads(r);
+      const maxLead = leads.length ? Math.max(...leads) : 0;
+      out.push({
+        reminder: r,
+        schedule: r.schedule,
+        eventDate,
+        eventDays,
+        status,
+        needsAttention: eventDays <= maxLead,
+      });
     }
-    out.sort((a, b) => a.daysAway - b.daysAway || a.fireTime.localeCompare(b.fireTime));
+    out.sort((a, b) => a.eventDays - b.eventDays);
     return out;
   }, [reminders, date]);
 
-  const todayOneShots = oneShotItems.filter((o) => o.daysAway === 0);
-  const upcomingOneShots = oneShotItems.filter((o) => o.daysAway > 0);
+  const todayOneShots = oneShotItems.filter((o) => o.needsAttention);
+  const upcomingOneShots = oneShotItems.filter((o) => !o.needsAttention);
 
   async function toggleSlot(slot: DoseSlot) {
     const key = slotKey(slot.reminderId, slot.time);
@@ -167,7 +174,7 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
             ))}
             {todayOneShots.map((item) => (
               <OneShotRow
-                key={`${item.reminder.id}-${item.fireDate}-${item.lead}`}
+                key={item.reminder.id}
                 item={item}
                 profile={showProfile ? profileById.get(item.reminder.profileId) : undefined}
                 onAgendei={() => setStatus(item.reminder.id, "scheduled")}
@@ -186,7 +193,7 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
           <ol className="divide-y divide-edge">
             {upcomingOneShots.map((item) => (
               <OneShotRow
-                key={`${item.reminder.id}-${item.fireDate}-${item.lead}`}
+                key={item.reminder.id}
                 item={item}
                 profile={showProfile ? profileById.get(item.reminder.profileId) : undefined}
                 onAgendei={() => setStatus(item.reminder.id, "scheduled")}
@@ -323,20 +330,24 @@ function OneShotRow({
   onFiz: () => void;
 }) {
   const meta = KIND_META[item.reminder.kind] ?? KIND_META.appointment;
-  const status = item.reminder.status ?? "unscheduled";
-  const targetDate = item.schedule.date;
-  const targetDays = daysBetween(item.fireDate, targetDate);
-  const isToday = item.daysAway === 0;
+  const status = item.status;
+  const unscheduled = status === "unscheduled";
+  const noun = kindActionNoun(item.reminder.kind, status);
+  const hint = unscheduled ? "marque" : "agendado";
 
   return (
     <li>
       <div className="grid grid-cols-[64px_1fr_auto] items-center gap-4 py-5">
-        <DateChip fireDate={item.fireDate} daysAway={item.daysAway} />
+        <DateChip eventDate={item.eventDate} eventDays={item.eventDays} />
         <div className="min-w-0">
           <div className="flex items-center gap-2 font-display text-[19px] leading-tight tracking-tight text-ink">
             <span aria-hidden className="text-[15px] leading-none">{meta.icon}</span>
             {profile ? <ProfileBadge profile={profile} size={20} /> : null}
-            <span className="min-w-0 truncate">{item.reminder.title}</span>
+            <span className="min-w-0 truncate">
+              <span className={unscheduled ? "text-amber" : "text-ink-soft"}>{noun}</span>
+              <span className="mx-1.5 text-ink-faint/60">·</span>
+              {item.reminder.title}
+            </span>
           </div>
           <div className="mt-1 text-[13px] text-ink-faint">
             {item.reminder.subtitle ? (
@@ -345,11 +356,11 @@ function OneShotRow({
                 <span className="mx-1.5 text-ink-faint/60">·</span>
               </>
             ) : null}
-            {leadCopy(item.lead, targetDate, targetDays, status, isToday)}
+            {hint}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3 text-[12px]">
-          {status === "unscheduled" ? (
+          {unscheduled ? (
             <button
               type="button"
               onClick={onAgendei}
@@ -374,26 +385,12 @@ function OneShotRow({
   );
 }
 
-function leadCopy(
-  lead: number,
-  targetDate: string,
-  targetDays: number,
-  status: "unscheduled" | "scheduled" | "done",
-  isToday: boolean,
-): string {
-  if (lead === 0) {
-    return isToday ? "é hoje" : `em ${formatBrDate(targetDate)}`;
-  }
-  if (lead === 1) {
-    return status === "scheduled" ? "amanhã" : `marcar pra ${formatBrDate(targetDate)}`;
-  }
-  const targetCopy = formatBrDate(targetDate);
-  if (status === "unscheduled") {
-    return targetDays > 0
-      ? `daqui ${targetDays} dias · marcar`
-      : `marcar pra ${targetCopy}`;
-  }
-  return targetDays > 0 ? `daqui ${targetDays} dias` : targetCopy;
+// Primeiro modo (não-agendado) = "Agendar consulta/vacina" — ainda precisa marcar.
+// Depois de "já agendei" vira só "Consulta/Vacina".
+function kindActionNoun(kind: ReminderKind, status: ReminderStatus): string {
+  const base = kind === "vaccine" ? "vacina" : "consulta";
+  if (status === "unscheduled") return `Agendar ${base}`;
+  return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
 function TimeChip({
@@ -418,14 +415,14 @@ function TimeChip({
   );
 }
 
-function DateChip({ fireDate, daysAway }: { fireDate: string; daysAway: number }) {
-  const [, m, d] = fireDate.split("-");
-  if (daysAway === 0) {
+function DateChip({ eventDate, eventDays }: { eventDate: string; eventDays: number }) {
+  const [, m, d] = eventDate.split("-");
+  if (eventDays === 0) {
     return (
       <div className="text-[11px] uppercase tracking-[0.16em] text-amber">hoje</div>
     );
   }
-  if (daysAway === 1) {
+  if (eventDays === 1) {
     return (
       <div className="text-[11px] uppercase tracking-[0.16em] text-ink-soft">
         amanhã
@@ -436,7 +433,7 @@ function DateChip({ fireDate, daysAway }: { fireDate: string; daysAway: number }
     <div className="tnum text-[15px] tracking-tight text-ink-soft">
       {d}/{m}
       <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-ink-faint">
-        em {daysAway}d
+        em {eventDays}d
       </div>
     </div>
   );
