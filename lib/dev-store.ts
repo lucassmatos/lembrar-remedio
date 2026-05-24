@@ -15,7 +15,7 @@ function compoundKey(pk: unknown, sk: unknown): string {
   return `${String(pk)}|${String(sk)}`;
 }
 
-type PutInput = { TableName: string; Item: Item };
+type PutInput = { TableName: string; Item: Item; ConditionExpression?: string; ExpressionAttributeNames?: Record<string, string>; ExpressionAttributeValues?: Record<string, unknown> };
 type GetInput = { TableName: string; Key: { pk: unknown; sk: unknown } };
 type DeleteInput = { TableName: string; Key: { pk: unknown; sk: unknown } };
 type QueryInput = {
@@ -175,8 +175,22 @@ export const devDoc = {
     const kind = cmdName(cmd);
 
     if (kind === "Put") {
-      const { Item } = cmd.input as PutInput;
+      const { Item, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues } = cmd.input as PutInput;
       const key = compoundKey(Item.pk, Item.sk);
+      if (ConditionExpression) {
+        const existing = store.get(key) ?? {};
+        const ok = evalCondition(
+          ConditionExpression,
+          existing,
+          ExpressionAttributeNames,
+          ExpressionAttributeValues,
+        );
+        if (!ok) {
+          const err = new Error("The conditional request failed");
+          (err as { name: string }).name = "ConditionalCheckFailedException";
+          throw err;
+        }
+      }
       store.set(key, { ...Item });
       return {};
     }
