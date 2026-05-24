@@ -165,7 +165,7 @@ export function formatBrDate(dateStr: string): string {
   return `${d}/${m}/${y.slice(2)}`;
 }
 
-function dateInTz(timestamp: number, tz: string): { date: string; minutes: number } {
+export function dateInTz(timestamp: number, tz: string): { date: string; minutes: number } {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",

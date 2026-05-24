@@ -90,4 +90,9 @@ export function isDevLocal(): boolean {
   return process.env.LR_DEV_LOCAL === "1";
 }
 
+/** Test support: wipe the in-memory store between tests. */
+export function _resetDevStore(): void {
+  store.clear();
+}
+
 export const DEV_USER_SUB = "dev-user";
