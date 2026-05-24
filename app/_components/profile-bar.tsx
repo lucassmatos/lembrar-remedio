@@ -45,6 +45,14 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
   const mine = profiles.filter((p) => (p.accessRole ?? "owner") === "owner");
   const shared = profiles.filter((p) => (p.accessRole ?? "owner") !== "owner");
 
+  // A partner relationship makes the roster one shared household: both members
+  // should see the same flat list (no meus/casa split) and both can add people.
+  // Detected either way: I'm someone's partner, or a partner is on one of my
+  // own profiles. Caregiver shares (role "caregiver") keep the grouped layout.
+  const hasPartner =
+    profiles.some((p) => p.accessRole === "partner") ||
+    mine.some((p) => (p.sharedWith ?? []).some((e) => e.role === "partner"));
+
   const addPersonButton = !adding ? (
     <button
       type="button"
@@ -86,8 +94,14 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
     </form>
   );
 
-  // ── Case A: no shared profiles — render flat layout (identical to before) ──
-  if (shared.length === 0) {
+  // ── Case A: flat layout — no shared profiles, OR a unified partner household ──
+  // (a partner household shows every profile in one list, identical for both members)
+  if (shared.length === 0 || hasPartner) {
+    // In a partner household both members must see the same order, so sort by
+    // creation time (stable across users) instead of "my profiles first".
+    const flat = hasPartner
+      ? [...profiles].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
+      : profiles;
     return (
       <div className="mb-8">
         <p className="mb-3 text-[12px] uppercase tracking-[0.16em] text-ink-faint">pessoas</p>
@@ -99,7 +113,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
               label="todos"
             />
           ) : null}
-          {profiles.map((p) => (
+          {flat.map((p) => (
             <Chip
               key={p.id}
               active={selected === p.id}

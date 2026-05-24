@@ -119,6 +119,35 @@ describe("acceptInvite", () => {
     );
   });
 
+  it("partner mode is bidirectional: shares the invitee's own profiles back to the owner", async () => {
+    await putProfile("ownerA", { ...baseProfile, ownerSub: "ownerA", sharedWith: [], version: 1 });
+    // invitee already has their own profile (e.g. their default profile)
+    await putProfile("partnerB", {
+      ...baseProfile, id: "p2", name: "Priscilla", ownerSub: "partnerB", sharedWith: [], version: 1,
+    });
+
+    await acceptInvite({
+      callerSub: "partnerB",
+      callerEmail: "b@example.com",
+      callerName: "B",
+      payload: { ownerSub: "ownerA", mode: "partner", inviteeEmail: "b@example.com" },
+    });
+
+    // owner now has a share link to the invitee's profile...
+    expect(await listShareLinks("ownerA")).toContainEqual(
+      expect.objectContaining({ ownerSub: "partnerB", profileId: "p2", role: "partner" }),
+    );
+    // ...and the invitee's profile carries the owner in sharedWith (for notify fan-out)
+    const partnerOwned = await listProfiles("partnerB");
+    expect(partnerOwned.find((p) => p.id === "p2")?.sharedWith).toContainEqual(
+      expect.objectContaining({ sub: "ownerA", role: "partner" }),
+    );
+    // existing direction still holds: invitee sees the owner's profile
+    expect(await listShareLinks("partnerB")).toContainEqual(
+      expect.objectContaining({ ownerSub: "ownerA", profileId: "p1", role: "partner" }),
+    );
+  });
+
   it("rejects when inviteeEmail mismatches", async () => {
     await expect(
       acceptInvite({

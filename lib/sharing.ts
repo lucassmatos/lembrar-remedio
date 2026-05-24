@@ -198,6 +198,29 @@ export async function acceptInvite(input: AcceptInviteInput): Promise<void> {
       since: now,
     };
     await setPartner(callerSub, callerRecord);
+
+    // Partnership is a single shared household: share the invitee's own
+    // profiles back to the owner too, so both partners see the full roster
+    // and notifications for either side's profiles fan out to both members.
+    const callerOwned = await listOwnerProfiles(callerSub);
+    for (const profile of callerOwned) {
+      if (!profile.sharedWith.some((e) => e.sub === payload.ownerSub)) {
+        await putProfile(callerSub, {
+          ...profile,
+          sharedWith: [
+            ...profile.sharedWith,
+            { sub: payload.ownerSub, role: "partner", addedAt: now },
+          ],
+          version: profile.version + 1,
+        });
+      }
+      await putShareLink(payload.ownerSub, {
+        ownerSub: callerSub,
+        profileId: profile.id,
+        role: "partner",
+        addedAt: now,
+      });
+    }
   }
 }
 
