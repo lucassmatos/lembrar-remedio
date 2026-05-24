@@ -6,6 +6,7 @@ import {
   putShareLink,
   deleteShareLink,
   setPartner,
+  getPartner,
   listProfiles as listOwnerProfiles,
   listProfilesForUser,
   listRemindersForProfile,
@@ -126,17 +127,33 @@ export type AcceptInviteInput = {
 
 export async function acceptInvite(input: AcceptInviteInput): Promise<void> {
   const { callerSub, callerEmail, callerName, payload } = input;
-  if (payload.inviteeEmail && payload.inviteeEmail !== callerEmail) {
+  // Invites are email-bound for BOTH modes — the link only grants access to
+  // the specific person it was issued for.
+  if (!payload.inviteeEmail || payload.inviteeEmail !== callerEmail) {
     throw new Error("inviteeEmail mismatch");
   }
   if (payload.ownerSub === callerSub) {
     throw new Error("cannot accept own invite");
   }
 
+  // Reject a second partner on either side — overwriting a partner record
+  // would leave the previous partner with dangling access.
+  if (payload.mode === "partner") {
+    if (await getPartner(callerSub)) {
+      throw new Error("você já tem um parceiro vinculado");
+    }
+    const ownerPartner = await getPartner(payload.ownerSub);
+    if (ownerPartner && ownerPartner.partnerSub !== callerSub) {
+      throw new Error("o dono do convite já tem um parceiro vinculado");
+    }
+  }
+
   const now = Date.now();
+  // Fetch the owner's profiles once (avoid N+1 inside the loop).
+  const owned = await listOwnerProfiles(payload.ownerSub);
   const profilesToShare: string[] =
     payload.mode === "partner"
-      ? (await listOwnerProfiles(payload.ownerSub)).map((p) => p.id)
+      ? owned.map((p) => p.id)
       : payload.profileIds ?? [];
 
   if (profilesToShare.length === 0 && payload.mode === "caregiver") {
@@ -144,7 +161,6 @@ export async function acceptInvite(input: AcceptInviteInput): Promise<void> {
   }
 
   for (const profileId of profilesToShare) {
-    const owned = await listOwnerProfiles(payload.ownerSub);
     const profile = owned.find((p) => p.id === profileId);
     if (!profile) continue;
     const exists = profile.sharedWith.some((e) => e.sub === callerSub);
@@ -207,6 +223,14 @@ export async function leaveShare(args: {
   ownerSub: string;
   profileId: string;
 }): Promise<void> {
+  // Verify the caller actually has a share link for this ownerSub+profileId.
+  // Without this, any authenticated user could mutate an arbitrary profile's
+  // sharedWith and delete share links by supplying client-controlled ids.
+  const links = await listShareLinks(args.callerSub);
+  const hasLink = links.some(
+    (l) => l.ownerSub === args.ownerSub && l.profileId === args.profileId,
+  );
+  if (!hasLink) return; // nothing to leave
   // Caller doesn't need owner permission — they're voluntarily leaving.
   const ownerRes = await doc.send(
     new GetCommand({
@@ -249,6 +273,7 @@ export function mapAccessError(e: unknown): NextResponse {
 export type ReminderWithProfile = {
   reminder: Reminder;
   profileId: string;
+  ownerSub: string;
 };
 
 /**
@@ -263,7 +288,9 @@ export async function findReminder(
   for (const grant of grants) {
     const reminders = await listRemindersForProfile(grant.profile.id);
     const found = reminders.find((r) => r.id === reminderId);
-    if (found) return { reminder: found, profileId: grant.profile.id };
+    if (found) {
+      return { reminder: found, profileId: grant.profile.id, ownerSub: grant.profile.ownerSub };
+    }
   }
   return null;
 }

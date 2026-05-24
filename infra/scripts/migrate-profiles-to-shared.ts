@@ -198,6 +198,32 @@ function splitNotified(
 }
 
 /**
+ * Verify every reminder for this user exists in its profile# partition.
+ * Throws on the first missing copy. Shared by the VERIFY and DELETE phases so
+ * DELETE never wipes originals before confirming the copies are in place.
+ */
+async function verifyReminderCopies(
+  sub: string,
+  reminders: Reminder[],
+  doc: DynamoDBDocumentClient,
+  table: string,
+): Promise<void> {
+  for (const r of reminders) {
+    const res = await doc.send(
+      new GetCommand({
+        TableName: table,
+        Key: { pk: `profile#${r.profileId}`, sk: `reminder#${r.id}` },
+      }),
+    );
+    if (!res.Item) {
+      throw new Error(
+        `[${sub}] VERIFY FAIL: reminder ${r.id} not found in profile#${r.profileId}`,
+      );
+    }
+  }
+}
+
+/**
  * Migrate a single user's data from user# partition to profile# partition.
  * Idempotent — skips users already migrated via config flags.
  * Exported for use in tests (pass options.doc + options.table to inject dev-store).
@@ -338,24 +364,16 @@ export async function migrateUser(
 
   // ===== Phase: VERIFY =====
   if (phase === "verify" || phase === "all") {
-    for (const r of reminders) {
-      const res = await doc.send(
-        new GetCommand({
-          TableName: table,
-          Key: { pk: `profile#${r.profileId}`, sk: `reminder#${r.id}` },
-        }),
-      );
-      if (!res.Item) {
-        throw new Error(
-          `[${sub}] VERIFY FAIL: reminder ${r.id} not found in profile#${r.profileId}`,
-        );
-      }
-    }
+    await verifyReminderCopies(sub, reminders, doc, table);
     console.log(`[${sub}] VERIFY ok`);
   }
 
   // ===== Phase: DELETE =====
   if (phase === "delete" || phase === "all") {
+    // Re-verify copies before deleting — guards against running --phase=delete
+    // in isolation (without a preceding VERIFY) and wiping originals while a
+    // copy is missing. Aborts for this user if any reminder copy is absent.
+    await verifyReminderCopies(sub, reminders, doc, table);
     // Use sequential DeleteCommand — no BatchWrite required for a one-shot migration.
     for (const r of reminders) {
       if (dryRun) {

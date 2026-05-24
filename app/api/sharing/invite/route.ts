@@ -14,16 +14,14 @@ const InviteSchema = z
       .array(z.string().regex(/^[A-Za-z0-9_-]{1,16}$/))
       .max(20)
       .optional(),
-    inviteeEmail: z.string().email().max(200).optional(),
+    // Invites are email-bound for BOTH modes — the link only grants access to
+    // the specific person it is issued for.
+    inviteeEmail: z.string().email().max(200),
   })
   .strict()
   .refine(
     (d) => d.mode === "partner" || (d.profileIds && d.profileIds.length > 0),
     "caregiver invite requires profileIds",
-  )
-  .refine(
-    (d) => d.mode === "partner" || !!d.inviteeEmail,
-    "caregiver invite requires inviteeEmail",
   );
 
 export async function POST(req: NextRequest) {

@@ -41,7 +41,7 @@ export default async function EntrarPage({
     return <ErrorPage message="Você não pode aceitar seu próprio convite." />;
   }
 
-  // 5. Email mismatch for caregiver invites
+  // 5. Email mismatch — invites are email-bound for both partner and caregiver.
   if (payload.inviteeEmail && payload.inviteeEmail !== session.user.email) {
     return (
       <ErrorPage

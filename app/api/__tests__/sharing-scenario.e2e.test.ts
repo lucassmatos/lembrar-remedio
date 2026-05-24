@@ -87,7 +87,11 @@ describe("completão: casal + filho + babá", () => {
     // --- Maria pareia Telegram e aceita o convite de parceira ---
     await setConfig(MARIA, { chatId: 200, timezone: "UTC", name: "Maria" });
     const partnerToken = "tok-partner";
-    const partnerPayload: InvitePayload = { ownerSub: LUCAS, mode: "partner" };
+    const partnerPayload: InvitePayload = {
+      ownerSub: LUCAS,
+      mode: "partner",
+      inviteeEmail: "maria@example.com",
+    };
     await putGenericToken(partnerToken, JSON.stringify(partnerPayload), 3600);
 
     const consumed = await consumeGenericToken(partnerToken);

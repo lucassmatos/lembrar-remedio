@@ -134,6 +134,63 @@ describe("acceptInvite", () => {
       }),
     ).rejects.toThrow(/inviteeEmail/);
   });
+
+  it("rejects partner invite missing inviteeEmail (email-bound for both modes)", async () => {
+    await putProfile("ownerA", { ...baseProfile, ownerSub: "ownerA", sharedWith: [], version: 1 });
+    await expect(
+      acceptInvite({
+        callerSub: "partnerB",
+        callerEmail: "b@example.com",
+        callerName: "B",
+        payload: { ownerSub: "ownerA", mode: "partner" },
+      }),
+    ).rejects.toThrow(/inviteeEmail/);
+  });
+
+  it("rejects a second partner on the caller's side", async () => {
+    await putProfile("ownerA", { ...baseProfile, ownerSub: "ownerA", sharedWith: [], version: 1 });
+    await putProfile("ownerB", { ...baseProfile, id: "p2", ownerSub: "ownerB", sharedWith: [], version: 1 });
+
+    // caller links to ownerA first
+    await acceptInvite({
+      callerSub: "callerX",
+      callerEmail: "x@example.com",
+      callerName: "X",
+      payload: { ownerSub: "ownerA", mode: "partner", inviteeEmail: "x@example.com" },
+    });
+
+    // a second partner invite (from ownerB) must be rejected
+    await expect(
+      acceptInvite({
+        callerSub: "callerX",
+        callerEmail: "x@example.com",
+        callerName: "X",
+        payload: { ownerSub: "ownerB", mode: "partner", inviteeEmail: "x@example.com" },
+      }),
+    ).rejects.toThrow(/parceiro/);
+  });
+
+  it("rejects when the invite owner already has a different partner", async () => {
+    await putProfile("ownerA", { ...baseProfile, ownerSub: "ownerA", sharedWith: [], version: 1 });
+
+    // ownerA already paired with someoneElse
+    await acceptInvite({
+      callerSub: "someoneElse",
+      callerEmail: "se@example.com",
+      callerName: "SE",
+      payload: { ownerSub: "ownerA", mode: "partner", inviteeEmail: "se@example.com" },
+    });
+
+    // a new caller trying to become ownerA's partner must be rejected
+    await expect(
+      acceptInvite({
+        callerSub: "newCaller",
+        callerEmail: "nc@example.com",
+        callerName: "NC",
+        payload: { ownerSub: "ownerA", mode: "partner", inviteeEmail: "nc@example.com" },
+      }),
+    ).rejects.toThrow(/parceiro/);
+  });
 });
 
 describe("removeMember / leaveShare", () => {
@@ -179,5 +236,23 @@ describe("removeMember / leaveShare", () => {
 
     expect((await listProfiles("ownerA"))[0].sharedWith).toEqual([]);
     expect(await listShareLinks("carerB")).toEqual([]);
+  });
+
+  it("leaveShare by a caller with no share link does NOT mutate the target profile (IDOR)", async () => {
+    // ownerA shares p1 with the legitimate member carerB.
+    await putProfile("ownerA", {
+      ...baseProfile, ownerSub: "ownerA",
+      sharedWith: [{ sub: "carerB", role: "caregiver", addedAt: 1 }],
+      version: 2,
+    });
+    await putShareLink("carerB", { ownerSub: "ownerA", profileId: "p1", role: "caregiver", addedAt: 1 });
+
+    // attackerZ has no share link but tries to "leave" ownerA's profile.
+    await leaveShare({ callerSub: "attackerZ", ownerSub: "ownerA", profileId: "p1" });
+
+    // The profile's sharedWith must be untouched (carerB still there, version unchanged).
+    const after = (await listProfiles("ownerA"))[0];
+    expect(after.sharedWith).toEqual([{ sub: "carerB", role: "caregiver", addedAt: 1 }]);
+    expect(after.version).toBe(2);
   });
 });

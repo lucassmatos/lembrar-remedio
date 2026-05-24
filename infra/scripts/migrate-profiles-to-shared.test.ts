@@ -129,6 +129,26 @@ describe("migration", () => {
     expect(meta?.ownerSub).toBe("userA");
   });
 
+  it("DELETE phase aborts (and keeps originals) if a profile copy is missing", async () => {
+    await seed({ pk: "users", sk: "user#userA", sub: "userA" });
+    await seed({ pk: "user#userA", sk: "config" });
+    await seed({ pk: "user#userA", sk: "profile#p1", id: "p1", name: "X", color: "sage", createdAt: 1 });
+    await seed({
+      pk: "user#userA", sk: "reminder#r1",
+      id: "r1", profileId: "p1", kind: "medication", title: "X",
+      schedule: { type: "daily-interval", intervalHours: 8, startTime: "08:00" },
+      createdAt: 1,
+    });
+
+    // Run only DELETE without a preceding COPY — the profile# copy is absent.
+    await expect(
+      migrateUser("userA", { doc: devDoc as never, table: TABLE, phase: "delete" }),
+    ).rejects.toThrow(/VERIFY FAIL/);
+
+    // The original must NOT have been deleted.
+    expect(await get("user#userA", "reminder#r1")).not.toBeNull();
+  });
+
   it("preserves TTL on notified items when splitting across profiles", async () => {
     await seed({ pk: "users", sk: "user#userA", sub: "userA" });
     await seed({ pk: "user#userA", sk: "config" });

@@ -11,7 +11,7 @@ import {
 } from "@/lib/ddb";
 import { answerCallback, editMessage, sendMessage, escapeHtml } from "@/lib/telegram";
 import { nowInTz } from "@/lib/schedule";
-import { findReminder } from "@/lib/sharing";
+import { findReminder, requireProfileAccess } from "@/lib/sharing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -138,12 +138,7 @@ async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
     await answerCallback(cq.id, "Chat não vinculado.");
     return;
   }
-  // Use the clicker's own timezone for the current date.
-  // Minor caveat: if the clicker's tz differs from the profile owner's tz, the
-  // date used here may differ from the date used when the notification was sent.
-  // This is rare (shared profiles typically span the same tz) and acceptable.
   const cfg = await getConfig(sub);
-  const date = nowInTz(cfg.timezone).date;
 
   if (data.startsWith("taken:") || data.startsWith("skip:")) {
     const slotKey = data.slice(data.indexOf(":") + 1);
@@ -159,6 +154,18 @@ async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
       await answerCallback(cq.id, "Lembrete não encontrado.");
       return;
     }
+    // Defense-in-depth: confirm the clicker still has access (instant revocation).
+    try {
+      await requireProfileAccess(sub, found.profileId, "viewer");
+    } catch {
+      await answerCallback(cq.id, "Sem acesso.");
+      return;
+    }
+    // Use the OWNER's timezone for the log date — the notification + markNotified
+    // were keyed to the owner's tz, so a caregiver in another tz must write to the
+    // same date bucket or the dose looks un-taken and re-notifies.
+    const ownerCfg = await getConfig(found.ownerSub);
+    const date = nowInTz(ownerCfg.timezone).date;
     // Record takenBy=sub so we know which member marked it.
     await setLogEntryForProfile(found.profileId, date, slotKey, taken, sub, cfg.name ?? undefined);
     await answerCallback(cq.id, taken ? "Marcado ✓" : "Pulado");
@@ -190,6 +197,13 @@ async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
     const found = await findReminder(sub, reminderId);
     if (!found) {
       await answerCallback(cq.id, "Lembrete não encontrado.");
+      return;
+    }
+    // Defense-in-depth: confirm the clicker still has access (instant revocation).
+    try {
+      await requireProfileAccess(sub, found.profileId, "viewer");
+    } catch {
+      await answerCallback(cq.id, "Sem acesso.");
       return;
     }
     const nextStatus = data.startsWith("agendei:") ? "scheduled" : "done";

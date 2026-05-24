@@ -16,6 +16,7 @@ import type {
   PartnerRecord,
   Profile,
   ProfileColor,
+  ProfileShareEntry,
   ProfileShareLink,
   ProfileShareRole,
   Reminder,
@@ -147,10 +148,14 @@ export async function listProfiles(sub: string): Promise<Profile[]> {
 }
 
 export async function putProfile(ownerSub: string, profile: Profile): Promise<Profile> {
+  // Dedup sharedWith by sub (keep last entry per sub) — makes concurrent
+  // first-time-accept races harmless (no duplicate entries / notifications).
+  const bySub = new Map<string, ProfileShareEntry>();
+  for (const e of profile.sharedWith ?? []) bySub.set(e.sub, e);
   const enriched: Profile = {
     ...profile,
     ownerSub: profile.ownerSub ?? ownerSub,
-    sharedWith: profile.sharedWith ?? [],
+    sharedWith: [...bySub.values()],
     version: profile.version ?? 1,
   };
   await doc.send(
@@ -359,14 +364,23 @@ export async function listActivities(sub: string, date: string): Promise<Activit
 }
 
 export async function listAllActivities(sub: string): Promise<Activity[]> {
-  const res = await doc.send(
-    new QueryCommand({
-      TableName: TABLE,
-      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
-      ExpressionAttributeValues: { ":pk": PK.user(sub), ":sk": "activity#" },
-    }),
-  );
-  return (res.Items ?? []).map(stripKeys<Activity>);
+  // Paginate — a single QueryCommand caps at 1MB, so without the loop
+  // activities beyond the first page leak (e.g. on deleteProfileCascade).
+  const out: Activity[] = [];
+  let lek: Record<string, unknown> | undefined;
+  do {
+    const res = await doc.send(
+      new QueryCommand({
+        TableName: TABLE,
+        KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+        ExpressionAttributeValues: { ":pk": PK.user(sub), ":sk": "activity#" },
+        ExclusiveStartKey: lek,
+      }),
+    );
+    for (const it of res.Items ?? []) out.push(stripKeys<Activity>(it));
+    lek = res.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (lek);
+  return out;
 }
 
 export async function getActivity(
@@ -545,6 +559,7 @@ export async function putPairToken(token: string, sub: string, ttlSeconds: numbe
       Item: {
         pk: PK.pair(token),
         sk: SK.pair,
+        kind: "telegram",
         sub,
         ttl: Math.floor(Date.now() / 1000) + ttlSeconds,
       },
@@ -555,6 +570,10 @@ export async function putPairToken(token: string, sub: string, ttlSeconds: numbe
 /**
  * Atomic consume — only one caller wins. Returns the sub if we won (the token
  * was valid and is now gone), or null if expired/missing/already-consumed.
+ *
+ * The kind discriminator namespaces Telegram pair tokens from generic sharing
+ * tokens (both live at pair#<token>/pair). `attribute_not_exists(#kind)` keeps
+ * backward-compat with pre-existing prod pair tokens written without `kind`.
  */
 export async function consumePairToken(token: string): Promise<string | null> {
   try {
@@ -563,9 +582,12 @@ export async function consumePairToken(token: string): Promise<string | null> {
         TableName: TABLE,
         Key: { pk: PK.pair(token), sk: SK.pair },
         ConditionExpression:
-          "attribute_exists(pk) AND (attribute_not_exists(#ttl) OR #ttl > :now)",
-        ExpressionAttributeNames: { "#ttl": "ttl" },
-        ExpressionAttributeValues: { ":now": Math.floor(Date.now() / 1000) },
+          "attribute_exists(pk) AND (attribute_not_exists(#kind) OR #kind = :kind) AND (attribute_not_exists(#ttl) OR #ttl > :now)",
+        ExpressionAttributeNames: { "#kind": "kind", "#ttl": "ttl" },
+        ExpressionAttributeValues: {
+          ":kind": "telegram",
+          ":now": Math.floor(Date.now() / 1000),
+        },
         ReturnValues: "ALL_OLD",
       }),
     );

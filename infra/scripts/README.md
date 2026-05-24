@@ -20,6 +20,21 @@ Phase C/D code (API rewire + Lambda rewire).
 
 ## Steps
 
+### 0. Maintenance window / write freeze (MANDATORY)
+
+Open a **maintenance window and freeze writes** to the app BEFORE the COPY
+phase, and hold it until AFTER the new code is deployed and verified (step 6).
+
+Why this is required: the live old app reads and writes the `user#` partition.
+The migration COPYs that data into the `profile#` partition and then DELETEs the
+originals. Once DELETE wipes `user#`, the old app serves empty data, and any
+writes that happened during the window land in a partition that is about to be
+(or already) deleted — those writes are silently lost. A write freeze (put the
+app in read-only / maintenance mode, or take it offline) is the only safe way to
+guarantee no data is lost across the cutover.
+
+Do not lift the freeze until step 6 confirms the new code is healthy.
+
 ### 1. Dry-run COPY — estimate scope
 
 ```bash
@@ -59,6 +74,31 @@ Each user's config is stamped with `migrationDone` when complete.
 Deploy the new web app + CDK stacks (Phase C API rewire + Phase D Lambda rewire).
 The new code reads only `profile#*` partitions — data is now in place.
 
+### 6. Verify the new code, then lift the write freeze
+
+Smoke-test the deployed app against real profiles (list profiles, view a
+reminder, mark a dose). Only once the new code is confirmed healthy should you
+lift the maintenance window / write freeze from step 0.
+
+### 7. Prime profile schedules (MANDATORY)
+
+Existing profiles do **not** get an `lr-profile-*` EventBridge schedule until a
+reminder changes — so freshly migrated profiles will not fire notifications
+until then. After deploy, run a one-shot that calls `updateProfileSchedule` for
+every profile-meta sentinel (`profile#<id>/meta`), creating the per-profile
+schedule for all existing profiles.
+
+Alternative (less reliable): the first `notify-dose` invocation self-reschedules
+the profile, but this only covers profiles that already had a schedule from the
+old per-user flow — do not depend on it for profiles that never had one. Prefer
+the explicit one-shot above.
+
+### 8. Cleanup old per-user schedules (MANDATORY)
+
+After step 7, remove the old per-user EventBridge Scheduler schedules
+(`lr-user-*`) replaced by per-profile schedules (`lr-profile-*`). Always run the
+dry-run first (see "Cleanup old schedules" below).
+
 ## Running all phases at once (non-production environments)
 
 ```bash
@@ -74,10 +114,11 @@ as many times as needed.
 **After DELETE:** restore from the DynamoDB on-demand backup taken at the start.
 There is no in-place rollback once originals are deleted.
 
-## Post-deploy cleanup
+## Cleanup old schedules
 
-After Phase D is fully deployed and verified in production, remove the old
-per-user EventBridge Scheduler schedules (`lr-user-*`) that were replaced by
+This is step 8 above and is **mandatory**, not optional. After Phase D is fully
+deployed and verified in production (and schedules primed in step 7), remove the
+old per-user EventBridge Scheduler schedules (`lr-user-*`) that were replaced by
 per-profile schedules (`lr-profile-*`).
 
 ### Dry-run (always run this first)

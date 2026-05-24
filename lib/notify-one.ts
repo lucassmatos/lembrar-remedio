@@ -98,10 +98,15 @@ async function persistMessageRefs(
         messageId: ref.messageId,
       };
     }
+    // Always set a TTL — the Get-then-Put would otherwise drop it when the
+    // item is missing, leaving the notified record alive forever. This map is
+    // best-effort (used for cross-member Telegram edits) and may drop refs
+    // under concurrent partial-send retries.
+    const ttl = Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60;
     await doc.send(
       new PutCommand({
         TableName: TABLE,
-        Item: { ...item, pk, sk, messages },
+        Item: { ...item, pk, sk, messages, ttl },
       }),
     );
   } catch (e) {

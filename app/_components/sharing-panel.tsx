@@ -234,6 +234,7 @@ export function SharingPanel() {
   const [data, setData] = useState<SharingData | null>(null);
   const [ownProfiles, setOwnProfiles] = useState<Profile[]>([]);
   const [partnerInvite, setPartnerInvite] = useState<InviteResult | null>(null);
+  const [partnerEmail, setPartnerEmail] = useState("");
   const [partnerBusy, setPartnerBusy] = useState(false);
   const [partnerErr, setPartnerErr] = useState<string | null>(null);
   const [showCaregiverForm, setShowCaregiverForm] = useState(false);
@@ -269,10 +270,14 @@ export function SharingPanel() {
   }, []);
 
   async function generatePartnerInvite() {
+    if (!isValidEmail(partnerEmail)) return;
     setPartnerBusy(true);
     setPartnerErr(null);
     try {
-      const res = await createInvite({ mode: "partner" });
+      const res = await createInvite({
+        mode: "partner",
+        inviteeEmail: partnerEmail.trim(),
+      });
       setPartnerInvite(res);
     } catch (e) {
       setPartnerErr(humanError(e));
@@ -372,22 +377,37 @@ export function SharingPanel() {
             <InviteLinkBlock result={partnerInvite} />
             <button
               type="button"
-              onClick={() => setPartnerInvite(null)}
+              onClick={() => {
+                setPartnerInvite(null);
+                setPartnerEmail("");
+              }}
               className="mt-3 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
             >
               fechar
             </button>
           </div>
         ) : (
-          <div>
+          <div className="space-y-4">
             <p className="text-[14px] leading-relaxed text-ink-soft">
               parceiros compartilham todos os perfis um do outro automaticamente.
             </p>
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">email do parceiro(a)</p>
+              <input
+                type="email"
+                value={partnerEmail}
+                onChange={(e) => setPartnerEmail(e.target.value)}
+                placeholder="email@exemplo.com"
+                autoComplete="email"
+                className="w-full bg-transparent pb-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60"
+                style={{ borderBottom: "1px solid var(--color-edge-2)" }}
+              />
+            </div>
             <button
               type="button"
               onClick={generatePartnerInvite}
-              disabled={partnerBusy}
-              className="mt-4 rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
+              disabled={partnerBusy || !isValidEmail(partnerEmail)}
+              className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {partnerBusy ? "gerando" : "convidar parceiro(a)"}
             </button>

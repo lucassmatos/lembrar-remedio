@@ -236,7 +236,7 @@ export async function getSharing(): Promise<SharingData> {
 
 export async function createInvite(
   body:
-    | { mode: "partner" }
+    | { mode: "partner"; inviteeEmail: string }
     | { mode: "caregiver"; profileIds: string[]; inviteeEmail: string },
 ): Promise<InviteResult> {
   return jsonFetch<InviteResult>("/api/sharing/invite", {

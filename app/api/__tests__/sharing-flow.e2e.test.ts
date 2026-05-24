@@ -114,10 +114,11 @@ describe("sharing-flow e2e — full backend integration", () => {
       version: 1,
     });
 
-    // ownerA creates a partner invite token (no profileIds, no inviteeEmail required)
+    // ownerA creates an email-bound partner invite token
     const payload: InvitePayload = {
       ownerSub: "ownerA",
       mode: "partner",
+      inviteeEmail: "partner@example.com",
     };
     const token = "test-partner-token-5678";
     await putGenericToken(token, JSON.stringify(payload), 86400);

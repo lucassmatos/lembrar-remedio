@@ -20,6 +20,10 @@ import {
   setPartner,
   getPartner,
   deletePartner,
+  putPairToken,
+  consumePairToken,
+  putGenericToken,
+  consumeGenericToken,
 } from "./ddb";
 import { _resetDevStore } from "./dev-store";
 
@@ -68,6 +72,22 @@ describe("profile-scoped DDB helpers", () => {
   });
 });
 
+describe("pair/generic token namespaces", () => {
+  it("consumeGenericToken cannot burn a Telegram pair token", async () => {
+    await putPairToken("tok-tg", "userA", 3600);
+    expect(await consumeGenericToken("tok-tg")).toBeNull();
+    // The Telegram token is still consumable via its own flow.
+    expect(await consumePairToken("tok-tg")).toBe("userA");
+  });
+
+  it("consumePairToken cannot burn a generic sharing token", async () => {
+    await putGenericToken("tok-share", JSON.stringify({ ownerSub: "x" }), 3600);
+    expect(await consumePairToken("tok-share")).toBeNull();
+    // The generic token is still consumable via its own flow.
+    expect(await consumeGenericToken("tok-share")).toBe(JSON.stringify({ ownerSub: "x" }));
+  });
+});
+
 describe("profile metadata + sharing", () => {
   it("putProfile sets ownerSub/sharedWith/version when missing", async () => {
     await putProfile("userA", {
@@ -77,6 +97,20 @@ describe("profile metadata + sharing", () => {
     const profs = await listProfiles("userA");
     expect(profs[0].ownerSub).toBe("userA");
     expect(profs[0].version).toBe(1);
+  });
+
+  it("putProfile dedups sharedWith by sub (keeps last entry)", async () => {
+    await putProfile("userA", {
+      id: "p1", name: "Filho", color: "sage", createdAt: 1,
+      ownerSub: "userA",
+      sharedWith: [
+        { sub: "userB", role: "caregiver", addedAt: 1 },
+        { sub: "userB", role: "partner", addedAt: 2 },
+      ],
+      version: 1,
+    });
+    const profs = await listProfiles("userA");
+    expect(profs[0].sharedWith).toEqual([{ sub: "userB", role: "partner", addedAt: 2 }]);
   });
 
   it("listProfilesForUser merges own + shared via link records", async () => {

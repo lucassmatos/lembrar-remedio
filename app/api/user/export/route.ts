@@ -19,7 +19,15 @@ export async function GET() {
     getConfig(s.sub),
     listProfilesForUser(s.sub),
   ]);
-  const profiles = grants.map((g) => ({ ...g.profile, accessRole: g.accessRole }));
+  const profiles = grants.map((g) => ({
+    ...g.profile,
+    accessRole: g.accessRole,
+    // Drop internal Google subs of other members — keep only role + addedAt.
+    sharedWith: (g.profile.sharedWith ?? []).map((e) => ({
+      role: e.role,
+      addedAt: e.addedAt,
+    })),
+  }));
   const reminderLists = await Promise.all(
     grants.map((g) => listRemindersForProfile(g.profile.id)),
   );
@@ -35,8 +43,20 @@ export async function GET() {
     const perProfile = await Promise.all(
       grants.map((g) => getLogForProfile(g.profile.id, date)),
     );
-    const merged = Object.assign({}, ...perProfile);
-    if (Object.keys(merged).length > 0) logs[date] = merged;
+    const merged = Object.assign({}, ...perProfile) as Record<string, unknown>;
+    // Strip internal takenBy (Google sub) from each log entry — keep
+    // takenByName / taken / takenAt.
+    const sanitized: Record<string, unknown> = {};
+    for (const [slotKey, val] of Object.entries(merged)) {
+      if (val && typeof val === "object") {
+        const { takenBy: _takenBy, ...rest } = val as Record<string, unknown>;
+        void _takenBy;
+        sanitized[slotKey] = rest;
+      } else {
+        sanitized[slotKey] = val;
+      }
+    }
+    if (Object.keys(sanitized).length > 0) logs[date] = sanitized;
   }
 
   const payload = {
