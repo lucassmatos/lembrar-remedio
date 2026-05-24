@@ -1,6 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
-  BatchWriteCommand,
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
@@ -579,6 +578,58 @@ export async function consumePairToken(token: string): Promise<string | null> {
   }
 }
 
+// ── Generic (sharing) token helpers ─────────────────────────────────────────
+// These are distinct from putPairToken/consumePairToken (Telegram pairing) so
+// that the Telegram flow is not affected by the sharing token changes.
+
+export async function putGenericToken(token: string, payloadJson: string, ttlSeconds: number): Promise<void> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: {
+        pk: PK.pair(token),
+        sk: SK.pair,
+        kind: "generic",
+        payload: payloadJson,
+        ttl: Math.floor(Date.now() / 1000) + ttlSeconds,
+      },
+    }),
+  );
+}
+
+export async function consumeGenericToken(token: string): Promise<string | null> {
+  try {
+    const res = await doc.send(
+      new DeleteCommand({
+        TableName: TABLE,
+        Key: { pk: PK.pair(token), sk: SK.pair },
+        ConditionExpression:
+          "attribute_exists(pk) AND #kind = :kind AND (attribute_not_exists(#ttl) OR #ttl > :now)",
+        ExpressionAttributeNames: { "#kind": "kind", "#ttl": "ttl" },
+        ExpressionAttributeValues: {
+          ":kind": "generic",
+          ":now": Math.floor(Date.now() / 1000),
+        },
+        ReturnValues: "ALL_OLD",
+      }),
+    );
+    return (res.Attributes?.payload as string) ?? null;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return null;
+    throw e;
+  }
+}
+
+export async function peekGenericToken(token: string): Promise<string | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.pair(token), sk: SK.pair } }),
+  );
+  const ttl = res.Item?.ttl as number | undefined;
+  if (!res.Item || res.Item.kind !== "generic") return null;
+  if (ttl && ttl <= Math.floor(Date.now() / 1000)) return null;
+  return (res.Item.payload as string) ?? null;
+}
+
 export async function setChatMapping(chatId: number, sub: string): Promise<void> {
   await doc.send(
     new PutCommand({
@@ -596,13 +647,53 @@ export async function getChatOwner(chatId: number): Promise<string | null> {
 }
 
 /**
- * Wipes everything for a user — reminders, profiles, config, logs, notified,
- * chat mapping, and the users index entry. For LGPD account deletion.
+ * Wipes everything for a user — shares, owned profiles (cascade), partner
+ * records, config, chat mapping, and the users index entry.
+ * For LGPD account deletion.
  */
 export async function deleteUserCascade(sub: string): Promise<{ items: number }> {
+  let totalDeleted = 0;
+
+  // 0) Detach caller from all profiles they access as caregiver/partner.
+  //    Remove their share-link and remove them from the owner's sharedWith.
+  const links = await listShareLinks(sub);
+  for (const l of links) {
+    await deleteShareLink(sub, l.ownerSub, l.profileId);
+    totalDeleted++;
+    const ownerRes = await doc.send(
+      new GetCommand({
+        TableName: TABLE,
+        Key: { pk: PK.user(l.ownerSub), sk: SK.profile(l.profileId) },
+      }),
+    );
+    if (ownerRes.Item) {
+      const profile = stripKeys<Profile>(ownerRes.Item);
+      await putProfile(l.ownerSub, {
+        ...profile,
+        sharedWith: profile.sharedWith.filter((e) => e.sub !== sub),
+        version: profile.version + 1,
+      });
+    }
+  }
+
+  // 1) Delete every owned profile — cascades reminders/logs/notified + member links.
+  const ownedProfiles = await listProfiles(sub);
+  for (const p of ownedProfiles) {
+    await deleteProfileCascade(sub, p.id);
+  }
+  totalDeleted += ownedProfiles.length;
+
+  // 2) Partner cleanup on both sides.
+  const partner = await getPartner(sub);
+  if (partner) {
+    await deletePartner(sub);
+    await deletePartner(partner.partnerSub);
+    totalDeleted += 2;
+  }
+
+  // 3) Sweep remaining user# partition items (config, share links, etc.).
   let chatIdToCleanup: number | undefined;
   let lek: Record<string, unknown> | undefined;
-  let totalDeleted = 0;
   do {
     const res = await doc.send(
       new QueryCommand({
@@ -614,26 +705,21 @@ export async function deleteUserCascade(sub: string): Promise<{ items: number }>
     );
     const items = res.Items ?? [];
     for (const it of items) {
-      if (it.sk === "config" && typeof it.chatId === "number") {
+      if (it.sk === SK.config && typeof it.chatId === "number") {
         chatIdToCleanup = it.chatId as number;
       }
-    }
-    for (let i = 0; i < items.length; i += 25) {
-      const batch = items.slice(i, i + 25);
       await doc.send(
-        new BatchWriteCommand({
-          RequestItems: {
-            [TABLE]: batch.map((it) => ({
-              DeleteRequest: { Key: { pk: it.pk, sk: it.sk } },
-            })),
-          },
+        new DeleteCommand({
+          TableName: TABLE,
+          Key: { pk: it.pk, sk: it.sk },
         }),
       );
+      totalDeleted++;
     }
-    totalDeleted += items.length;
-    lek = res.LastEvaluatedKey;
+    lek = res.LastEvaluatedKey as Record<string, unknown> | undefined;
   } while (lek);
 
+  // 4) Delete chat mapping if present.
   if (chatIdToCleanup !== undefined) {
     await doc.send(
       new DeleteCommand({
@@ -641,14 +727,17 @@ export async function deleteUserCascade(sub: string): Promise<{ items: number }>
         Key: { pk: PK.chat(chatIdToCleanup), sk: SK.chat },
       }),
     );
+    totalDeleted++;
   }
 
+  // 5) Remove from global users index.
   await doc.send(
     new DeleteCommand({
       TableName: TABLE,
       Key: { pk: PK.users, sk: SK.userIndex(sub) },
     }),
   );
+  totalDeleted++;
 
   return { items: totalDeleted };
 }

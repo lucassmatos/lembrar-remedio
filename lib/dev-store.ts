@@ -17,7 +17,14 @@ function compoundKey(pk: unknown, sk: unknown): string {
 
 type PutInput = { TableName: string; Item: Item; ConditionExpression?: string; ExpressionAttributeNames?: Record<string, string>; ExpressionAttributeValues?: Record<string, unknown> };
 type GetInput = { TableName: string; Key: { pk: unknown; sk: unknown } };
-type DeleteInput = { TableName: string; Key: { pk: unknown; sk: unknown } };
+type DeleteInput = {
+  TableName: string;
+  Key: { pk: unknown; sk: unknown };
+  ConditionExpression?: string;
+  ExpressionAttributeNames?: Record<string, string>;
+  ExpressionAttributeValues?: Record<string, unknown>;
+  ReturnValues?: string;
+};
 type QueryInput = {
   TableName: string;
   KeyConditionExpression?: string;
@@ -59,6 +66,32 @@ function resolveValue(name: string, values: Record<string, unknown> | undefined)
   return undefined;
 }
 
+/**
+ * Split expr on top-level occurrences of `sep` (case-insensitive), respecting
+ * parentheses. Returns the parts without the separator.
+ */
+function splitTopLevel(expr: string, sep: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let cur = "";
+  const upper = expr.toUpperCase();
+  const sepUpper = sep.toUpperCase();
+  let i = 0;
+  while (i < expr.length) {
+    if (expr[i] === "(") { depth++; cur += expr[i++]; continue; }
+    if (expr[i] === ")") { depth--; cur += expr[i++]; continue; }
+    if (depth === 0 && upper.startsWith(sepUpper, i)) {
+      parts.push(cur.trim());
+      cur = "";
+      i += sep.length;
+      continue;
+    }
+    cur += expr[i++];
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
+
 function evalCondition(
   expr: string,
   item: Item,
@@ -71,9 +104,10 @@ function evalCondition(
   //   NOT contains(#keys, :slotKey)
   //   <a> OR <b>
   //   <a> AND <b>
-  const orParts = expr.split(/\s+OR\s+/i);
+  //   Nested: <a> AND (<b> OR <c>)
+  const orParts = splitTopLevel(expr, " OR ");
   return orParts.some((p) =>
-    p.split(/\s+AND\s+/i).every((tok) => evalAtomic(tok.trim(), item, names, values)),
+    splitTopLevel(p, " AND ").every((tok) => evalAtomic(tok.trim(), item, names, values)),
   );
 }
 
@@ -88,6 +122,26 @@ function evalAtomic(
   if (body.toUpperCase().startsWith("NOT ")) {
     negate = true;
     body = body.slice(4).trim();
+  }
+  // Strip outer parentheses — but only if they are a matching pair wrapping
+  // the whole expression. After stripping, recurse into evalCondition so that
+  // compound sub-expressions like (A OR B) are handled correctly.
+  if (body.startsWith("(") && body.endsWith(")")) {
+    const inner = body.slice(1, -1).trim();
+    // Verify the parens actually wrap the whole thing (not e.g. "foo(x) OR bar(y)")
+    let depth = 0;
+    let balanced = true;
+    for (let ci = 0; ci < inner.length; ci++) {
+      if (inner[ci] === "(") depth++;
+      if (inner[ci] === ")") {
+        if (depth === 0) { balanced = false; break; }
+        depth--;
+      }
+    }
+    if (balanced) {
+      const r = evalCondition(inner, item, names, values);
+      return negate ? !r : r;
+    }
   }
   const m1 = body.match(/^attribute_not_exists\((.+)\)$/);
   if (m1) {
@@ -107,6 +161,27 @@ function evalAtomic(
     const v = resolveValue(m3[2].trim(), values);
     const arr = (item[n] as unknown[]) ?? [];
     const r = Array.isArray(arr) && arr.includes(v);
+    return negate ? !r : r;
+  }
+  // Comparison operators: LHS = RHS  or  LHS > RHS
+  const mEq = body.match(/^(.+?)\s*=\s*(.+)$/);
+  if (mEq) {
+    const lhsRaw = mEq[1].trim();
+    const rhsRaw = mEq[2].trim();
+    const lhsName = resolveName(lhsRaw, names);
+    const lhsVal = lhsRaw.startsWith(":") ? resolveValue(lhsRaw, values) : item[lhsName];
+    const rhsVal = rhsRaw.startsWith(":") ? resolveValue(rhsRaw, values) : item[resolveName(rhsRaw, names)];
+    const r = lhsVal === rhsVal;
+    return negate ? !r : r;
+  }
+  const mGt = body.match(/^(.+?)\s*>\s*(.+)$/);
+  if (mGt) {
+    const lhsRaw = mGt[1].trim();
+    const rhsRaw = mGt[2].trim();
+    const lhsName = resolveName(lhsRaw, names);
+    const lhsVal = lhsRaw.startsWith(":") ? resolveValue(lhsRaw, values) : item[lhsName];
+    const rhsVal = rhsRaw.startsWith(":") ? resolveValue(rhsRaw, values) : item[resolveName(rhsRaw, names)];
+    const r = (lhsVal as number) > (rhsVal as number);
     return negate ? !r : r;
   }
   throw new Error(`dev-store: unsupported condition atom: ${tok}`);
@@ -202,8 +277,26 @@ export const devDoc = {
     }
 
     if (kind === "Delete") {
-      const { Key } = cmd.input as DeleteInput;
-      store.delete(compoundKey(Key.pk, Key.sk));
+      const { Key, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues, ReturnValues } = cmd.input as DeleteInput;
+      const key = compoundKey(Key.pk, Key.sk);
+      const existing = store.get(key);
+      if (ConditionExpression) {
+        const ok = evalCondition(
+          ConditionExpression,
+          existing ?? {},
+          ExpressionAttributeNames,
+          ExpressionAttributeValues,
+        );
+        if (!ok) {
+          const err = new Error("The conditional request failed");
+          (err as { name: string }).name = "ConditionalCheckFailedException";
+          throw err;
+        }
+      }
+      store.delete(key);
+      if (ReturnValues === "ALL_OLD" && existing) {
+        return { Attributes: { ...existing } };
+      }
       return {};
     }
 
