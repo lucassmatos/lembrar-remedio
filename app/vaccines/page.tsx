@@ -6,13 +6,14 @@ import { OneShotForm } from "../_components/one-shot-form";
 import { UpcomingList } from "../_components/upcoming-list";
 import { ProfileBar } from "../_components/profile-bar";
 import { getProfiles, getReminders, onChange } from "@/lib/api";
-import type { Profile, Reminder } from "@/lib/types";
+import type { ProfileWithAccess } from "@/lib/api";
+import type { Reminder } from "@/lib/types";
 
 const SELECTED_KEY = "lr.profile.selected.v1";
 
 export default function VaccinesPage() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<ProfileWithAccess[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [mounted, setMounted] = useState(false);
 

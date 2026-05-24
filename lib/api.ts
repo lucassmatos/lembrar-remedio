@@ -92,8 +92,12 @@ export async function setLogEntry(
   return data.log;
 }
 
-export async function getProfiles(): Promise<Profile[]> {
-  const data = await jsonFetch<{ profiles: Profile[] }>("/api/profiles");
+export type ProfileWithAccess = Profile & {
+  accessRole?: "owner" | "partner" | "caregiver";
+};
+
+export async function getProfiles(): Promise<ProfileWithAccess[]> {
+  const data = await jsonFetch<{ profiles: ProfileWithAccess[] }>("/api/profiles");
   return data.profiles;
 }
 

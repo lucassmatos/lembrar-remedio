@@ -7,13 +7,14 @@ import { MedList } from "../_components/med-list";
 import { PrescriptionScan } from "../_components/prescription-scan";
 import { ProfileBar } from "../_components/profile-bar";
 import { getProfiles, getReminders, onChange } from "@/lib/api";
-import type { Profile, Reminder } from "@/lib/types";
+import type { ProfileWithAccess } from "@/lib/api";
+import type { Reminder } from "@/lib/types";
 
 const SELECTED_KEY = "lr.profile.selected.v1";
 
 export default function MedicationsPage() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<ProfileWithAccess[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [mounted, setMounted] = useState(false);
 

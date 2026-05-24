@@ -1,22 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import type { Profile } from "@/lib/types";
+import type { ProfileWithAccess } from "@/lib/api";
 import { addProfile } from "@/lib/api";
 import { profileFill } from "@/lib/profile-ui";
 
 type Props = {
-  profiles: Profile[];
+  profiles: ProfileWithAccess[];
   selected: string | "all";
   onSelect: (id: string | "all") => void;
   allowAll?: boolean;
 };
+
+// Filter options for the quiet group filter.
+// Named "tudo/meus/da casa" (not "todos") to avoid collision with the
+// allowAll "todos pessoas" chip that represents the "all profiles" selection.
+type GroupFilter = "tudo" | "meus" | "da casa";
 
 export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: Props) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Group filter — only rendered when both mine and shared are non-empty
+  const [groupFilter, setGroupFilter] = useState<GroupFilter>("tudo");
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -35,67 +42,192 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
     }
   }
 
+  const mine = profiles.filter((p) => (p.accessRole ?? "owner") === "owner");
+  const shared = profiles.filter((p) => (p.accessRole ?? "owner") !== "owner");
+
+  const addPersonButton = !adding ? (
+    <button
+      type="button"
+      onClick={() => setAdding(true)}
+      className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:text-ink"
+      style={{ border: "1px dashed var(--color-edge-2)" }}
+    >
+      + pessoa
+    </button>
+  ) : (
+    <form onSubmit={create} className="flex min-w-[12rem] flex-1 items-center gap-2">
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="nome"
+        maxLength={40}
+        className="min-w-0 flex-1 rounded-full bg-transparent px-3.5 py-1.5 text-[14px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+        style={{ border: "1px solid var(--color-edge-2)" }}
+      />
+      <button
+        type="submit"
+        disabled={busy}
+        className="rounded-full bg-ink px-3.5 py-1.5 text-[13px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? "..." : "criar"}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setAdding(false);
+          setName("");
+          setErr(null);
+        }}
+        className="text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+      >
+        cancelar
+      </button>
+    </form>
+  );
+
+  // ── Case A: no shared profiles — render flat layout (identical to before) ──
+  if (shared.length === 0) {
+    return (
+      <div className="mb-8">
+        <p className="mb-3 text-[12px] uppercase tracking-[0.16em] text-ink-faint">pessoas</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {allowAll ? (
+            <Chip
+              active={selected === "all"}
+              onClick={() => onSelect("all")}
+              label="todos"
+            />
+          ) : null}
+          {profiles.map((p) => (
+            <Chip
+              key={p.id}
+              active={selected === p.id}
+              color={profileFill(p.color)}
+              onClick={() => onSelect(p.id)}
+              label={p.name}
+            />
+          ))}
+          {addPersonButton}
+        </div>
+        {err ? (
+          <p className="mt-2 text-[13px]" style={{ color: "var(--color-clay)" }}>
+            {err}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  // ── Case B: has shared profiles — grouped layout ──
+
+  // Whether to show the quiet filter: only when both groups are non-empty
+  const showFilter = mine.length > 0 && shared.length > 0;
+
+  // Which groups to render based on active filter
+  const showMine = showFilter ? groupFilter === "tudo" || groupFilter === "meus" : mine.length > 0;
+  const showShared = showFilter ? groupFilter === "tudo" || groupFilter === "da casa" : true;
+
+  // Label for the caregiver-only case (no owned profiles)
+  const sharedGroupLabel = mine.length === 0 ? "cuidando" : "da casa";
+
   return (
     <div className="mb-8">
       <p className="mb-3 text-[12px] uppercase tracking-[0.16em] text-ink-faint">pessoas</p>
-      <div className="flex flex-wrap items-center gap-2">
-        {allowAll ? (
+
+      {/* Quiet filter — only when both groups non-empty */}
+      {showFilter ? (
+        <div className="mb-4 inline-flex gap-0.5" role="group" aria-label="filtrar pessoas">
+          {(["tudo", "meus", "da casa"] as GroupFilter[]).map((opt) => {
+            const count = opt === "tudo" ? profiles.length : opt === "meus" ? mine.length : shared.length;
+            return (
+              <button
+                key={opt}
+                type="button"
+                aria-pressed={groupFilter === opt}
+                onClick={() => setGroupFilter(opt)}
+                className={
+                  "rounded-full px-[11px] py-1 text-[13px] tracking-[0.02em] transition-colors " +
+                  (groupFilter === opt
+                    ? "text-ink"
+                    : "text-ink-faint hover:text-ink")
+                }
+                style={
+                  groupFilter === opt
+                    ? {
+                        background: "var(--color-paper-2)",
+                        boxShadow: "inset 0 0 0 1px var(--color-edge-2)",
+                      }
+                    : {}
+                }
+              >
+                {opt}{" "}
+                <span className="text-ink-faint tabular-nums">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {/* allowAll "todos pessoas" chip — stays at the very top, before groups */}
+      {allowAll ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <Chip
             active={selected === "all"}
             onClick={() => onSelect("all")}
             label="todos"
           />
-        ) : null}
-        {profiles.map((p) => (
-          <Chip
-            key={p.id}
-            active={selected === p.id}
-            color={profileFill(p.color)}
-            onClick={() => onSelect(p.id)}
-            label={p.name}
-          />
-        ))}
-        {!adding ? (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:text-ink"
-            style={{ border: "1px dashed var(--color-edge-2)" }}
-          >
-            + pessoa
-          </button>
-        ) : (
-          <form onSubmit={create} className="flex min-w-[12rem] flex-1 items-center gap-2">
-            <input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="nome"
-              maxLength={40}
-              className="min-w-0 flex-1 rounded-full bg-transparent px-3.5 py-1.5 text-[14px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
-              style={{ border: "1px solid var(--color-edge-2)" }}
-            />
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-full bg-ink px-3.5 py-1.5 text-[13px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
-            >
-              {busy ? "..." : "criar"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAdding(false);
-                setName("");
-                setErr(null);
-              }}
-              className="text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
-            >
-              cancelar
-            </button>
-          </form>
-        )}
-      </div>
+        </div>
+      ) : null}
+
+      {/* meus group */}
+      {showMine && mine.length > 0 ? (
+        <div className={showShared ? "mb-5" : ""}>
+          {/* Group label only shown in grouped mode */}
+          <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">meus</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {mine.map((p) => (
+              <Chip
+                key={p.id}
+                active={selected === p.id}
+                color={profileFill(p.color)}
+                onClick={() => onSelect(p.id)}
+                label={p.name}
+              />
+            ))}
+            {/* add-person form lives in the meus group (creates an owned profile) */}
+            {addPersonButton}
+          </div>
+        </div>
+      ) : null}
+
+      {/* da casa / cuidando group */}
+      {showShared ? (
+        <div>
+          <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">
+            {sharedGroupLabel}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {shared.map((p) => (
+              <Chip
+                key={p.id}
+                active={selected === p.id}
+                color={profileFill(p.color)}
+                onClick={() => onSelect(p.id)}
+                label={p.name}
+              />
+            ))}
+            {/* caregiver with no owned profiles: add-person creates their first owned profile */}
+            {mine.length === 0 ? addPersonButton : null}
+          </div>
+        </div>
+      ) : null}
+
+      {/* When meus filter is active and shared group is hidden, still show add-person if not already shown */}
+      {showFilter && groupFilter === "meus" && mine.length === 0 ? (
+        <div className="flex flex-wrap items-center gap-2">{addPersonButton}</div>
+      ) : null}
+
       {err ? (
         <p className="mt-2 text-[13px]" style={{ color: "var(--color-clay)" }}>
           {err}
