@@ -968,4 +968,16 @@ export async function deletePartner(sub: string): Promise<void> {
   );
 }
 
+export async function setReminderStatusForProfile(
+  profileId: string,
+  id: string,
+  status: ReminderStatus,
+): Promise<Reminder | null> {
+  const existing = await getReminderForProfile(profileId, id);
+  if (!existing) return null;
+  const updated: Reminder = { ...existing, status };
+  await putReminderForProfile(updated);
+  return updated;
+}
+
 export const _internal = { PK, SK, doc, TABLE };

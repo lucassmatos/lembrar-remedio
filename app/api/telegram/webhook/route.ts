@@ -6,11 +6,12 @@ import {
   getConfig,
   setChatMapping,
   setConfig,
-  setLogEntry,
-  setReminderStatus,
+  setLogEntryForProfile,
+  setReminderStatusForProfile,
 } from "@/lib/ddb";
 import { answerCallback, editMessage, sendMessage, escapeHtml } from "@/lib/telegram";
 import { nowInTz } from "@/lib/schedule";
+import { findReminder } from "@/lib/sharing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -131,11 +132,16 @@ async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
     await answerCallback(cq.id);
     return;
   }
+  // Resolve the sub that owns this chat — unchanged (chat mapping is still per-user).
   const sub = await getChatOwner(chat.id);
   if (!sub) {
     await answerCallback(cq.id, "Chat não vinculado.");
     return;
   }
+  // Use the clicker's own timezone for the current date.
+  // Minor caveat: if the clicker's tz differs from the profile owner's tz, the
+  // date used here may differ from the date used when the notification was sent.
+  // This is rare (shared profiles typically span the same tz) and acceptable.
   const cfg = await getConfig(sub);
   const date = nowInTz(cfg.timezone).date;
 
@@ -146,7 +152,15 @@ async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
       return;
     }
     const taken = data.startsWith("taken:");
-    await setLogEntry(sub, date, slotKey, taken);
+    // Resolve the profile that owns this reminder via the accessible-profile walker.
+    const reminderId = slotKey.split("@")[0];
+    const found = await findReminder(sub, reminderId);
+    if (!found) {
+      await answerCallback(cq.id, "Lembrete não encontrado.");
+      return;
+    }
+    // Record takenBy=sub so we know which member marked it.
+    await setLogEntryForProfile(found.profileId, date, slotKey, taken, sub);
     await answerCallback(cq.id, taken ? "Marcado ✓" : "Pulado");
     if (cq.message) {
       const newText =
@@ -162,8 +176,14 @@ async function handleCallback(cq: NonNullable<Update["callback_query"]>) {
       await answerCallback(cq.id, "Botão inválido.");
       return;
     }
+    // Resolve profile for this reminder.
+    const found = await findReminder(sub, reminderId);
+    if (!found) {
+      await answerCallback(cq.id, "Lembrete não encontrado.");
+      return;
+    }
     const nextStatus = data.startsWith("agendei:") ? "scheduled" : "done";
-    const updated = await setReminderStatus(sub, reminderId, nextStatus);
+    const updated = await setReminderStatusForProfile(found.profileId, reminderId, nextStatus);
     if (!updated) {
       await answerCallback(cq.id, "Lembrete não encontrado.");
       return;

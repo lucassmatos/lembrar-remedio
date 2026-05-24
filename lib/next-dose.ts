@@ -10,19 +10,21 @@ import {
 import type { NotifyInput } from "./notify-one";
 import {
   getConfig as ddbGetConfig,
-  getLog as ddbGetLog,
-  getNotifiedKeys as ddbGetNotifiedKeys,
-  listReminders as ddbListReminders,
+  getLogForProfile,
+  getNotifiedKeysForProfile,
+  listRemindersForProfile,
 } from "./ddb";
 
 const DEFAULT_CATCH_UP_MS = 5 * 60_000;
 const FIRE_FUDGE_MS = 60_000;
 
+export type NextDoseTarget = { profileId: string; ownerSub: string };
+
 export type NextDoseDeps = {
-  getConfig: (sub: string) => Promise<Pick<Config, "chatId" | "timezone">>;
-  listReminders: (sub: string) => Promise<Reminder[]>;
-  getLog: (sub: string, date: string) => Promise<DayLog>;
-  getNotifiedKeys: (sub: string, date: string) => Promise<Set<string>>;
+  getConfig: (sub: string) => Promise<Pick<Config, "timezone">>;
+  listReminders: (profileId: string) => Promise<Reminder[]>;
+  getLog: (profileId: string, date: string) => Promise<DayLog>;
+  getNotifiedKeys: (profileId: string, date: string) => Promise<Set<string>>;
 };
 
 export type NextDoseOptions = {
@@ -44,17 +46,19 @@ type Occurrence = {
 };
 
 export async function computeNextDose(
-  sub: string,
+  target: NextDoseTarget,
   deps: NextDoseDeps,
   opts: NextDoseOptions = {},
 ): Promise<NextDoseResult> {
   const now = opts.now ?? Date.now();
   const catchUpMs = opts.catchUpMs ?? DEFAULT_CATCH_UP_MS;
 
-  const cfg = await deps.getConfig(sub);
-  if (!cfg.chatId) return { due: [], nextAt: null };
+  // Timezone comes from the profile owner's config.
+  // The chatId gate is intentionally removed: whether any member has a chatId
+  // is decided at send time in notifyOneDose, not here.
+  const cfg = await deps.getConfig(target.ownerSub);
 
-  const reminders = await deps.listReminders(sub);
+  const reminders = await deps.listReminders(target.profileId);
   if (reminders.length === 0) return { due: [], nextAt: null };
 
   const tz = cfg.timezone || "America/Sao_Paulo";
@@ -78,7 +82,7 @@ export async function computeNextDose(
           if (at == null) continue;
           if (at < now - catchUpMs) continue;
           raw.push({
-            input: { sub, reminderId: r.id, time },
+            input: { profileId: target.profileId, ownerSub: target.ownerSub, reminderId: r.id, time },
             at,
             fireDate,
             key: slotKey(r.id, time),
@@ -94,7 +98,8 @@ export async function computeNextDose(
         if (at < now - catchUpMs) continue;
         raw.push({
           input: {
-            sub,
+            profileId: target.profileId,
+            ownerSub: target.ownerSub,
             reminderId: r.id,
             targetDate: r.schedule.type === "one-shot" ? r.schedule.date : occ.date,
             lead: occ.lead,
@@ -113,9 +118,9 @@ export async function computeNextDose(
   // Need log + notified set for each unique fire date — fetch in parallel.
   const fireDates = Array.from(new Set(raw.map((o) => o.fireDate)));
   const [logs, notifieds] = await Promise.all([
-    Promise.all(fireDates.map((d) => deps.getLog(sub, d).then((log) => [d, log] as const))),
+    Promise.all(fireDates.map((d) => deps.getLog(target.profileId, d).then((log) => [d, log] as const))),
     Promise.all(
-      fireDates.map((d) => deps.getNotifiedKeys(sub, d).then((set) => [d, set] as const)),
+      fireDates.map((d) => deps.getNotifiedKeys(target.profileId, d).then((set) => [d, set] as const)),
     ),
   ]);
   const logByDate = new Map(logs);
@@ -208,7 +213,7 @@ function dateInTz(epochMs: number, tz: string): string {
 
 export const defaultDeps: NextDoseDeps = {
   getConfig: ddbGetConfig,
-  listReminders: ddbListReminders,
-  getLog: ddbGetLog,
-  getNotifiedKeys: ddbGetNotifiedKeys,
+  listReminders: listRemindersForProfile,
+  getLog: getLogForProfile,
+  getNotifiedKeys: getNotifiedKeysForProfile,
 };
