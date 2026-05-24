@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>lembrar-remedio · roster de pessoas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: oklch(0.985 0.005 75);
+    --paper-2: oklch(0.965 0.006 75);
+    --edge: oklch(0.905 0.008 75);
+    --edge-2: oklch(0.86 0.009 70);
+    --ink: oklch(0.22 0.012 60);
+    --ink-soft: oklch(0.48 0.012 60);
+    --ink-faint: oklch(0.62 0.012 65);
+    --sage: oklch(0.62 0.07 145);
+    --amber: oklch(0.74 0.13 75);
+    --clay: oklch(0.62 0.1 35);
+    --violet: oklch(0.55 0.13 295);
+    --sky: oklch(0.6 0.1 230);
+    --sand: oklch(0.6 0.07 80);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    padding: 48px 24px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .display {
+    font-family: "Fraunces", Georgia, serif;
+    font-variation-settings: "opsz" 32, "SOFT" 60;
+    letter-spacing: -0.01em;
+    font-weight: 500;
+  }
+  .eyebrow {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.18em;
+    color: var(--ink-faint);
+  }
+  h1.display { font-size: 44px; line-height: 1.05; margin-top: 4px; letter-spacing: -0.02em; }
+
+  .panel {
+    margin-top: 56px;
+    padding-top: 28px;
+    border-top: 1px solid var(--edge);
+  }
+  .panel-note {
+    font-size: 13px; color: var(--ink-soft); margin-bottom: 22px; max-width: 56ch;
+  }
+  .panel-note b { color: var(--ink); font-weight: 600; }
+
+  .seg-label {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em;
+    color: var(--ink-faint); margin-bottom: 12px;
+  }
+
+  /* quiet filter */
+  .filter {
+    display: inline-flex; gap: 2px; margin-bottom: 18px;
+    font-size: 13px;
+  }
+  .filter button {
+    border: 0; background: transparent; cursor: pointer;
+    padding: 4px 11px; border-radius: 999px;
+    color: var(--ink-faint); letter-spacing: 0.02em;
+    transition: color .2s, background .2s;
+  }
+  .filter button:hover { color: var(--ink); }
+  .filter button[aria-pressed="true"] {
+    color: var(--ink); background: var(--paper-2);
+    box-shadow: inset 0 0 0 1px var(--edge-2);
+  }
+  .filter .count { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+  .group-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em;
+    color: var(--ink-faint); margin: 4px 0 10px;
+  }
+  .group + .group { margin-top: 20px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    border-radius: 999px; padding: 7px 14px;
+    font-size: 14px; cursor: pointer; border: 1px solid var(--edge-2);
+    background: transparent; color: var(--ink-soft);
+    transition: color .2s, transform .12s;
+  }
+  .chip:hover { color: var(--ink); }
+  .chip .dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+  .chip.active { border-color: transparent; color: var(--paper); }
+  .chip.active .dot { display: none; }
+
+  /* provenance: who shared it. quiet, attached to the chip */
+  .chip .with {
+    font-size: 11px; color: var(--ink-faint); letter-spacing: 0.01em;
+    padding-left: 8px; margin-left: 2px;
+    border-left: 1px solid color-mix(in oklab, var(--edge-2) 80%, transparent);
+  }
+  .chip.active .with { color: color-mix(in oklab, var(--paper) 78%, transparent); border-left-color: color-mix(in oklab, var(--paper) 30%, transparent); }
+
+  .add {
+    border-radius: 999px; padding: 7px 14px; font-size: 13px;
+    color: var(--ink-soft); background: transparent;
+    border: 1px dashed var(--edge-2); cursor: pointer;
+  }
+  .add:hover { color: var(--ink); }
+
+  /* role legend chip used in the close-up */
+  .role-tag {
+    font-size: 11px; letter-spacing: 0.04em; text-transform: lowercase;
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--sage-soft, oklch(0.92 0.035 145));
+    color: oklch(0.42 0.06 145);
+  }
+
+  .closeup {
+    margin-top: 8px; padding: 22px; border-radius: 18px;
+    background: var(--paper-2); border: 1px solid var(--edge);
+    display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap;
+  }
+  .closeup .who { font-family: "Fraunces", serif; font-size: 22px; font-weight: 500; }
+  .closeup .meta { font-size: 13px; color: var(--ink-soft); margin-top: 3px; }
+  .closeup .marker {
+    width: 40px; height: 40px; border-radius: 999px; flex: none;
+    display: grid; place-items: center; color: var(--paper); font-weight: 600;
+    font-family: "Fraunces", serif; font-size: 18px;
+  }
+
+  .caption { font-size: 12px; color: var(--ink-faint); margin-top: 14px; }
+  .rule { color: var(--ink-faint); }
+  code { font-family: ui-monospace, monospace; font-size: 0.92em; background: var(--paper-2); padding: 1px 5px; border-radius: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">lembrar-remedio · direção</p>
+  <h1 class="display">Roster de pessoas</h1>
+  <p class="panel-note" style="margin-top:14px;">
+    Um roster só: "quem você cuida". Propriedade é sinal secundário, não um modo.
+    Quando há perfis compartilhados, um filtro silencioso aparece. Default
+    <b>todos</b>, ninguém escondido.
+  </p>
+
+  <!-- PANEL 1 — owner with own + shared -->
+  <section class="panel">
+    <p class="seg-label">1 · sua visão (você + compartilhados)</p>
+    <p class="panel-note">
+      O filtro é um <b>filtro</b>, não um switch de workspace. Selecionar uma pessoa
+      continua sendo um toque no chip. Compartilhados carregam <b>de quem são</b>,
+      anexado discreto ao chip.
+    </p>
+
+    <div class="filter" role="group" aria-label="filtrar pessoas">
+      <button aria-pressed="true">todos <span class="count">4</span></button>
+      <button aria-pressed="false">meus <span class="count">2</span></button>
+      <button aria-pressed="false">da casa <span class="count">2</span></button>
+    </div>
+
+    <div class="group">
+      <p class="group-label">meus</p>
+      <div class="chips">
+        <span class="chip active" style="background: var(--sage);">Eu</span>
+        <span class="chip"><span class="dot" style="background: var(--sand);"></span>Mãe</span>
+      </div>
+    </div>
+
+    <div class="group">
+      <p class="group-label">da casa</p>
+      <div class="chips">
+        <span class="chip"><span class="dot" style="background: var(--sky);"></span>Filho<span class="with">com Maria</span></span>
+        <span class="chip"><span class="dot" style="background: var(--clay);"></span>Avó<span class="with">com João</span></span>
+        <button class="add">+ pessoa</button>
+      </div>
+    </div>
+    <p class="caption"><span class="rule">——</span> chip ativo = preenchido com a cor do perfil · "com &lt;nome&gt;" só nos compartilhados</p>
+  </section>
+
+  <!-- PANEL 2 — close up of a shared profile -->
+  <section class="panel">
+    <p class="seg-label">2 · detalhe de um perfil compartilhado</p>
+    <p class="panel-note">Ao abrir o perfil compartilhado: quem é dono, seu papel, e quem mais tem acesso.</p>
+    <div class="closeup">
+      <div class="marker" style="background: var(--sky);">F</div>
+      <div style="flex:1; min-width: 220px;">
+        <div class="who">Filho</div>
+        <div class="meta">de <b>Maria</b> · você é <span class="role-tag">parceiro</span></div>
+        <div class="meta" style="margin-top:8px;">também cuidam: João (cuidador), Ana (babá)</div>
+      </div>
+    </div>
+    <p class="caption"><span class="rule">——</span> dose marcada mostra "marcado por Maria · 14:23" no histórico</p>
+  </section>
+
+  <!-- PANEL 3 — caregiver, only shared -->
+  <section class="panel">
+    <p class="seg-label">3 · visão da babá (só compartilhados)</p>
+    <p class="panel-note">
+      Sem perfis próprios, <b>meus</b> some — sem modo morto. O filtro nem aparece
+      quando só há uma origem. Ela vê só o que foi compartilhado com ela.
+    </p>
+    <div class="group">
+      <p class="group-label">cuidando</p>
+      <div class="chips">
+        <span class="chip active" style="background: var(--sky);">Filho<span class="with">de Maria</span></span>
+        <span class="chip"><span class="dot" style="background: var(--clay);"></span>Filha<span class="with">de Maria</span></span>
+      </div>
+    </div>
+    <p class="caption"><span class="rule">——</span> babá pode marcar dose, não pode editar nem adicionar</p>
+  </section>
+
+  <!-- PANEL 4 — the rejected alternative, for contrast -->
+  <section class="panel">
+    <p class="seg-label">✗ o que eu evitei — toggle de modo</p>
+    <p class="panel-note">
+      <b>[ Pessoal ] [ Casa ]</b> como abas no topo. Esconde o filho atrás de um
+      clique (esposa quer ver ele todo dia) e cria aba vazia pra babá. Reflexo de
+      workspace-switcher que não cabe aqui.
+    </p>
+    <div style="display:inline-flex; border-radius:999px; background: var(--paper-2); padding:3px; box-shadow: inset 0 0 0 1px var(--edge-2); opacity:0.55;">
+      <span style="padding:6px 18px; border-radius:999px; font-size:13px; color: var(--ink-faint);">Pessoal</span>
+      <span style="padding:6px 18px; border-radius:999px; font-size:13px; background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px oklch(0 0 0 / 0.06);">Casa</span>
+    </div>
+    <p class="caption" style="color: var(--clay);"><span class="rule">——</span> não recomendado</p>
+  </section>
+
+</div>
+</body>
+</html>
