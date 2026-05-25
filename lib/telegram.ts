@@ -54,6 +54,10 @@ export async function sendMessage(args: {
   text: string;
   buttons?: Button[][];
 }): Promise<{ message_id?: number }> {
+  // Lambda path: token lives in Secrets Manager and must be loaded before use.
+  // Idempotent + returns immediately on Vercel (env var set). Without this the
+  // dose-notify Lambda silently fails every send (token() throws).
+  await ensureTelegramToken();
   const body: Record<string, unknown> = {
     chat_id: args.chatId,
     text: args.text,
@@ -80,6 +84,7 @@ export async function editMessage(args: {
   text: string;
   buttons?: Button[][];
 }): Promise<void> {
+  await ensureTelegramToken();
   const body: Record<string, unknown> = {
     chat_id: args.chatId,
     message_id: args.messageId,
