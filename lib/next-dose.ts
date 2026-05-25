@@ -15,7 +15,14 @@ import {
   listRemindersForProfile,
 } from "./ddb";
 
-const DEFAULT_CATCH_UP_MS = 5 * 60_000;
+// Catch-up window: how far in the past a slot can be and still fire "now".
+// Must comfortably exceed worst-case dispatch lag (EventBridge delivery delay,
+// Lambda cold start, the 300s retry policy, a re-priming/migration burst).
+// At 5min it sat right on that boundary: a fire ~6min late dropped the dose
+// silently (not sent, not rescheduled). 60min recovers a late fire without
+// firing stale doses — med slots are >=4h apart, so adjacent slots never
+// collide in this window.
+const DEFAULT_CATCH_UP_MS = 60 * 60_000;
 const FIRE_FUDGE_MS = 60_000;
 
 export type NextDoseTarget = { profileId: string; ownerSub: string };

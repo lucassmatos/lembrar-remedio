@@ -97,11 +97,11 @@ describe("computeNextDose", () => {
   });
 
   it("rolls to tomorrow when no slot left today", async () => {
-    // Now = 08:00 SP. Slot at 07:00 SP today is past → tomorrow's slot.
-    const reminders = [dailyMed({ times: ["07:00"] })];
+    // Now = 08:00 SP. Slot at 06:00 SP today is past the catch-up window → tomorrow's slot.
+    const reminders = [dailyMed({ times: ["06:00"] })];
     const result = await computeNextDose(TARGET, mkDeps({ reminders }), { now: NOW });
     expect(result.due).toEqual([]);
-    expect(result.nextAt).toBe(epochMsForTzDateTime("2026-05-25", "07:00", TZ));
+    expect(result.nextAt).toBe(epochMsForTzDateTime("2026-05-25", "06:00", TZ));
   });
 
   it("returns slot as due when it's within fire-fudge window", async () => {
@@ -115,7 +115,7 @@ describe("computeNextDose", () => {
     expect(result.nextAt).toBe(epochMsForTzDateTime("2026-05-25", "08:00", TZ));
   });
 
-  it("includes slot from last 5 minutes in due", async () => {
+  it("includes slot from last few minutes in due", async () => {
     // Slot at 07:58 SP = 4 minutes ago.
     const reminders = [dailyMed({ times: ["07:58"] })];
     const result = await computeNextDose(TARGET, mkDeps({ reminders }), { now: NOW });
@@ -124,12 +124,23 @@ describe("computeNextDose", () => {
     ]);
   });
 
+  it("recovers a slot fired up to an hour late (regression: late dispatch)", async () => {
+    // Slot at 07:15 SP = 45 minutes ago. With the old 5min window this dropped
+    // silently (the migration bug that ate the 19:00 doses). The 60min catch-up
+    // must still deliver it.
+    const reminders = [dailyMed({ times: ["07:15"] })];
+    const result = await computeNextDose(TARGET, mkDeps({ reminders }), { now: NOW });
+    expect(result.due).toEqual([
+      { profileId: "p1", ownerSub: "u1", reminderId: "m1", time: "07:15" },
+    ]);
+  });
+
   it("excludes slot older than catch-up window", async () => {
-    // Slot at 07:50 SP = 10 minutes ago, beyond 5min catch-up.
-    const reminders = [dailyMed({ times: ["07:50"] })];
+    // Slot at 06:30 SP = 90 minutes ago, beyond the 60min catch-up.
+    const reminders = [dailyMed({ times: ["06:30"] })];
     const result = await computeNextDose(TARGET, mkDeps({ reminders }), { now: NOW });
     expect(result.due).toEqual([]);
-    expect(result.nextAt).toBe(epochMsForTzDateTime("2026-05-25", "07:50", TZ));
+    expect(result.nextAt).toBe(epochMsForTzDateTime("2026-05-25", "06:30", TZ));
   });
 
   it("filters slots already taken from log", async () => {
