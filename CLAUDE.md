@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `lembrar-remedio` — PWA pra controlar horários de medicamento, vacinas, retornos
 médicos e diário do bebê (sonecas + amamentação), pra você e pra quem você cuida.
-Notificação por Telegram, escaneia receita com foto (OpenAI BYOK), perfis
-compartilháveis entre cuidadores.
+Notificação por Telegram **e** Web Push (PWA, em paralelo), escaneia receita com
+foto (OpenAI BYOK), perfis compartilháveis entre cuidadores.
 
 ## Commands
 
@@ -67,19 +67,40 @@ conta. Dois papéis: **parceiro** (acesso total, igual owner) e **cuidador**
 - `listProfilesForUser(sub)` mescla perfis próprios + compartilhados (via link
   records → GetItem na partição do owner).
 
-### Notificações (Telegram-only)
+### Notificações (Telegram + Web Push, em paralelo)
 
-Push do PWA foi descontinuado — **só Telegram**. `lib/next-dose.ts`
-(`computeNextDose({profileId, ownerSub})`) calcula slots devidos por perfil
-usando o **timezone do owner**. `lib/notify-one.ts` faz fan-out: manda pra todos
-os membros pareados do perfil, claim atômico via `markNotifiedForProfile`, e grava
-`messages` (chatId+messageId por membro, chave sanitizada via `lib/profile-keys.ts`
-base64url) pra editar os cards depois. Quando um membro marca "tomei",
-`notifyOtherMembersOfTaken` edita o card dos outros pra "✅ fulano marcou"
-(best-effort, swallow erro do `editMessageText` — limite de 48h do Telegram).
+Dois canais, ambos disparados pelo servidor. `lib/next-dose.ts`
+(`computeNextDose({profileId, ownerSub})`) calcula slots devidos por perfil no
+**timezone do owner** (janela de catch-up de 60min). `lib/notify-one.ts`
+(`fanOutAndClaim`) faz fan-out por membro pareado: **claim atômico** via
+`markNotifiedForProfile` ANTES de enviar (dedup contra disparos concorrentes),
+depois manda **Telegram E Web Push** pra cada membro.
+
+- **Telegram** (`lib/telegram.ts`): grava `messages` (chatId+messageId por membro,
+  chave base64url via `lib/profile-keys.ts`) pra editar os cards. Ao marcar
+  "tomei", `notifyOtherMembersOfTaken` edita o card dos outros pra "✅ fulano
+  marcou" (best-effort, limite de 48h do Telegram).
+- **Web Push** (`lib/push.ts`, lib `web-push`): manda pra todas as subscriptions
+  do membro (`user#<sub>/pushsub#<id>`), poda as mortas (404/410).
+- **Falha total** (nenhum canal alcançou ninguém) → solta o claim
+  (`unmarkNotifiedForProfile`) e o handler do Lambda **lança erro** → EventBridge
+  re-tenta (2x/300s, dentro do catch-up). Sucesso parcial mantém o claim (sem
+  reenvio duplicado). Sem isso, um blip de rede perdia a dose calado.
+- **Credencial:** `sendMessage`/`editMessage` chamam `ensureTelegramToken()` e
+  `sendWebPush` chama `ensureVapid()` — vêm de env (Vercel) ou Secrets Manager
+  (Lambda). Não chame `token()` sem garantir: foi o bug que silenciava TODA
+  notificação de dose no Lambda (token só carregava se alguém chamasse ensure).
 
 O webhook (`app/api/telegram/webhook/route.ts`) resolve o perfil de um callback via
 `findReminder(sub, reminderId)` e re-checa `requireProfileAccess` antes de marcar.
+
+**Web Push setup:** chave VAPID pública hardcoded em `lib/vapid-public.ts`
+(client-safe); privada em env `VAPID_PRIVATE_KEY` (Vercel) ou secret
+`lembrar-remedio/vapid-private-key` via `VAPID_PRIVATE_KEY_SECRET_ARN` (Lambda).
+SW `public/sw.js` (handlers `push`+`notificationclick`) registrado em
+`app/_components/providers.tsx`. Opt-in em Ajustes (`push-opt-in.tsx` →
+`/api/push/subscribe`); **iOS só recebe com o PWA na tela inicial** (16.4+). Botão
+"enviar teste" → `/api/notify/test`.
 
 ### Lambdas + EventBridge (`infra/`)
 
@@ -98,6 +119,25 @@ não é mamada). Legados sem `method` = peito (`feedMethod()`). Activities vivem
 partição `user#<sub>` (não migraram pra profile#), mas `deleteProfileCascade`
 limpa as do perfil deletado.
 
+### Frontend & estado de domínio
+
+- **Hub de lembretes:** tudo numa rota `/lembretes` (`app/lembretes/page.tsx`) com
+  seletor de tipo via `?tipo=medication|appointment|vaccine` (`lib/reminder-kinds.ts`).
+  `/medications`, `/appointments`, `/vaccines` são só `redirect()` pra lá. Nav em
+  4 itens (`app/_components/nav.tsx`): Timeline · Lembretes · Diário · Ajustes.
+- **`Reminder.status`** (`unscheduled→scheduled→done`, só one-shot consulta/vacina):
+  guia o fan-out (`sendOneShot` só dispara pre-lead enquanto unscheduled, post-lead
+  quando scheduled) e a Timeline (done some). Reversível na UI (desmarcar/reabrir)
+  e editável no `one-shot-form.tsx`.
+- **`Profile.aindaMama`** — bebê que ainda mama; gateia a seção de mamada no Diário
+  (soneca segue pra todos). Set no editar perfil (`profiles-panel.tsx`).
+- **`Config.startScreen`** (`timeline|diario`) — tela inicial; `/` redireciona pro
+  Diário uma vez por sessão (sessionStorage) quando = diario.
+- **Tema noturno automático** (20h–08h): `app/_components/night-theme.tsx` seta
+  `data-theme="night"` no `<html>` (script inline no `layout.tsx` evita flash);
+  paleta dim em `globals.css` sob `html[data-theme="night"]`, vence o
+  light/dark do sistema.
+
 ## AWS / deploy
 
 - **Conta:** `lembrar-remedio` vive na conta AWS **`lucas-pessoal`** (us-east-1).
@@ -106,8 +146,14 @@ limpa as do perfil deletado.
   Não está nas contas Rune/Institucional.
 - **App na Vercel**, lê DDB via chaves `LR_AWS_ACCESS_KEY_ID`/`LR_AWS_SECRET_ACCESS_KEY`
   (renomeadas pra não colidir com env reservada da Vercel). Infra via CDK em
-  `infra/` (`npx cdk deploy --all`). `TELEGRAM_BOT_TOKEN` vem do Secrets Manager
-  no Lambda.
+  `infra/` (`npx cdk deploy --all`). Secrets do Lambda: `lembrar-remedio/telegram-bot-token`
+  e `lembrar-remedio/vapid-private-key` (Secrets Manager, grant na role do notify-dose).
+- **Deploy é dividido:** o app/webhook roda na **Vercel** (git push → deploy), o
+  pipeline de notificação roda em **Lambda** (`notify-dose`/`schedule-sync`, bundla
+  `lib/`). Mexeu em `lib/notify-one.ts`, `lib/telegram.ts`, `lib/push.ts` ou
+  `lib/next-dose.ts`? Afeta os DOIS — `git push` (Vercel) **e**
+  `cd infra && AWS_PROFILE=lucas-pessoal npx cdk deploy LembrarRemedioCompute` (Lambda).
+  Web Push pelo servidor da Vercel exige o env `VAPID_PRIVATE_KEY` lá.
 - **Migração profile-scoped:** `infra/scripts/migrate-profiles-to-shared.ts` move
   reminders/logs/notified de `user#` pra `profile#`. 3 fases idempotentes
   (COPY → VERIFY → DELETE). Runbook completo em `infra/scripts/README.md`.
