@@ -74,7 +74,7 @@ export function TodayList({ date, tz, reminders, profiles = [], nowMinutes }: Pr
         </p>
         <p className="mt-2 text-[15px] text-ink-soft">
           Cadastre um medicamento em{" "}
-          <a href="/medications" className="underline decoration-edge-2 underline-offset-4 hover:text-ink">
+          <a href="/lembretes?tipo=medication" className="underline decoration-edge-2 underline-offset-4 hover:text-ink">
             Medicamentos
           </a>{" "}
           e os horários do dia aparecem aqui.

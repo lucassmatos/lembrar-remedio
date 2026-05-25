@@ -16,7 +16,6 @@ type Props = {
   reminder?: Reminder;
   profileId?: string;
   defaultKind?: ReminderKind;
-  lockKind?: boolean;
   onSaved?: (r: Reminder) => void;
   onCancel?: () => void;
 };
@@ -46,7 +45,6 @@ export function OneShotForm({
   reminder,
   profileId,
   defaultKind = "appointment",
-  lockKind = false,
   onSaved,
   onCancel,
 }: Props) {
@@ -57,7 +55,7 @@ export function OneShotForm({
     ? (reminder?.kind ?? defaultKind)
     : defaultKind;
 
-  const [kind, setKind] = useState<ReminderKind>(initialKind);
+  const [kind] = useState<ReminderKind>(initialKind);
   const [title, setTitle] = useState(reminder?.title ?? "");
   const [subtitle, setSubtitle] = useState(reminder?.subtitle ?? "");
   const [date, setDate] = useState(oneShot?.date ?? "");
@@ -73,12 +71,6 @@ export function OneShotForm({
     setLeads((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
     );
-  }
-
-  function changeKind(next: ReminderKind) {
-    if (next === kind || editing) return;
-    setKind(next);
-    if (!editing) setLeads(defaultLeadsFor(next));
   }
 
   async function submit(e: React.FormEvent) {
@@ -145,28 +137,6 @@ export function OneShotForm({
 
   return (
     <form onSubmit={submit} className="space-y-7">
-      {!editing && !lockKind ? (
-        <div>
-          <label className="mb-3 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
-            Tipo
-          </label>
-          <div className="flex gap-2">
-            <KindChip
-              icon="💉"
-              label="Vacina"
-              active={kind === "vaccine"}
-              onClick={() => changeKind("vaccine")}
-            />
-            <KindChip
-              icon="📅"
-              label="Consulta"
-              active={kind === "appointment"}
-              onClick={() => changeKind("appointment")}
-            />
-          </div>
-        </div>
-      ) : null}
-
       <div>
         <label className="mb-2 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
           {titleLabel}
@@ -279,35 +249,5 @@ export function OneShotForm({
         ) : null}
       </div>
     </form>
-  );
-}
-
-function KindChip({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: string;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] transition-all " +
-        (active
-          ? "bg-ink text-paper"
-          : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
-      }
-    >
-      <span aria-hidden className="text-[16px] leading-none">
-        {icon}
-      </span>
-      {label}
-    </button>
   );
 }

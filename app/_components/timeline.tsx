@@ -25,6 +25,7 @@ import type {
   ReminderStatus,
 } from "@/lib/types";
 import { clock, formatDuration } from "@/lib/activity";
+import { KIND_META, KIND_ORDER, isReminderKind } from "@/lib/reminder-kinds";
 import { ProfileBadge } from "./profile-badge";
 
 type Props = {
@@ -38,12 +39,7 @@ type Props = {
 
 const NEAR_WINDOW = 30;
 const HORIZON_DAYS = 90;
-
-const KIND_META = {
-  medication: { icon: "💊", noun: "Medicamento" },
-  vaccine: { icon: "💉", noun: "Vacina" },
-  appointment: { icon: "📅", noun: "Consulta" },
-} as const;
+const KINDS_KEY = "lr.timeline.kinds.v1";
 
 type OneShotEntry = {
   reminder: Reminder;
@@ -61,6 +57,34 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
   );
   const showProfile = profiles.length >= 2;
   const [log, setLog] = useState<DayLog>({});
+  const [enabledKinds, setEnabledKinds] = useState<Set<ReminderKind>>(
+    () => new Set(KIND_ORDER),
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(KINDS_KEY);
+    if (stored === null) return;
+    setEnabledKinds(new Set(stored.split(",").filter(isReminderKind)));
+  }, []);
+
+  function toggleKind(k: ReminderKind) {
+    setEnabledKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(KINDS_KEY, KIND_ORDER.filter((x) => next.has(x)).join(","));
+      }
+      return next;
+    });
+  }
+
+  const kindsPresent = useMemo(() => {
+    const set = new Set<ReminderKind>();
+    for (const r of reminders) set.add(r.kind);
+    return set;
+  }, [reminders]);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,8 +105,8 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
   }, [date]);
 
   const meds = useMemo(
-    () => reminders.filter((r) => r.kind === "medication"),
-    [reminders],
+    () => reminders.filter((r) => r.kind === "medication" && enabledKinds.has("medication")),
+    [reminders, enabledKinds],
   );
 
   const todaySlotItems = useMemo(
@@ -97,6 +121,7 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
     const out: OneShotEntry[] = [];
     for (const r of reminders) {
       if (r.schedule.type !== "one-shot") continue;
+      if (!enabledKinds.has(r.kind)) continue;
       const status = effectiveStatus(r);
       if (status === "done") continue;
       const eventDate = r.schedule.date;
@@ -116,7 +141,7 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
     }
     out.sort((a, b) => a.eventDays - b.eventDays);
     return out;
-  }, [reminders, date]);
+  }, [reminders, date, enabledKinds]);
 
   const todayOneShots = oneShotItems.filter((o) => o.needsAttention);
   const upcomingOneShots = oneShotItems.filter((o) => !o.needsAttention);
@@ -153,6 +178,34 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
           tz={tz}
           profileById={showProfile ? profileById : undefined}
         />
+      ) : null}
+
+      {kindsPresent.size >= 2 ? (
+        <div className="mb-8 flex flex-wrap gap-2">
+          {KIND_ORDER.filter((k) => kindsPresent.has(k)).map((k) => {
+            const on = enabledKinds.has(k);
+            const m = KIND_META[k];
+            return (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggleKind(k)}
+                className={
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] transition-all " +
+                  (on
+                    ? "bg-ink text-paper"
+                    : "border border-edge-2 text-ink-faint hover:border-ink-soft hover:text-ink-soft")
+                }
+              >
+                <span aria-hidden className={"text-[14px] leading-none " + (on ? "" : "opacity-50")}>
+                  {m.icon}
+                </span>
+                {m.plural}
+              </button>
+            );
+          })}
+        </div>
       ) : null}
 
       <section className="mb-12">
