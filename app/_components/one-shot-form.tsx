@@ -163,6 +163,9 @@ export function OneShotForm({
       <div>
         <label className="mb-2 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
           {subtitleLabel}
+          {kind === "vaccine" ? (
+            <span className="lowercase tracking-normal text-ink-faint/60"> (opcional)</span>
+          ) : null}
         </label>
         <input
           value={subtitle}
