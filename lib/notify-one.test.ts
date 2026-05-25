@@ -163,6 +163,61 @@ describe("notifyOneDose — med-slot", () => {
     expect(chatIds).toEqual([1001, 2002]);
   });
 
+  it("releases the claim + returns failure when EVERY send fails (so a retry re-sends)", async () => {
+    await seedProfile({ ownerSub: OWNER_SUB, profileId: PROFILE_ID, name: "Família" });
+    await seedReminder(PROFILE_ID, { id: REMINDER_ID });
+    await setConfig(OWNER_SUB, { timezone: TZ, chatId: 1001 });
+    vi.mocked(sendMessage).mockRejectedValue(new Error("Telegram offline"));
+
+    const result = await notifyOneDose({
+      profileId: PROFILE_ID,
+      ownerSub: OWNER_SUB,
+      reminderId: REMINDER_ID,
+      time: "08:00",
+    });
+
+    expect(result).toEqual({ sent: false, reason: "all sends failed" });
+    // Claim released: the slot is NOT marked notified, so EventBridge's retry re-sends.
+    const notified = await doc.send(
+      new GetCommand({
+        TableName: TABLE,
+        Key: { pk: PK.profile(PROFILE_ID), sk: SK.notified(NOW_DATE) },
+      }),
+    );
+    expect(((notified.Item?.keys ?? []) as string[])).not.toContain(`${REMINDER_ID}@08:00`);
+  });
+
+  it("keeps the claim on partial success (one of two sends fails)", async () => {
+    await seedProfile({
+      ownerSub: OWNER_SUB,
+      profileId: PROFILE_ID,
+      name: "Família",
+      sharedWith: [{ sub: VIEWER_SUB, role: "caregiver" }],
+    });
+    await seedReminder(PROFILE_ID, { id: REMINDER_ID });
+    await setConfig(OWNER_SUB, { timezone: TZ, chatId: 1001 });
+    await setConfig(VIEWER_SUB, { timezone: TZ, chatId: 2002 });
+    vi.mocked(sendMessage)
+      .mockResolvedValueOnce({ message_id: 42 })
+      .mockRejectedValueOnce(new Error("bot blocked by viewer"));
+
+    const result = await notifyOneDose({
+      profileId: PROFILE_ID,
+      ownerSub: OWNER_SUB,
+      reminderId: REMINDER_ID,
+      time: "08:00",
+    });
+
+    expect(result).toMatchObject({ sent: true });
+    const notified = await doc.send(
+      new GetCommand({
+        TableName: TABLE,
+        Key: { pk: PK.profile(PROFILE_ID), sk: SK.notified(NOW_DATE) },
+      }),
+    );
+    expect(((notified.Item?.keys ?? []) as string[])).toContain(`${REMINDER_ID}@08:00`);
+  });
+
   it("skips member without chatId", async () => {
     await seedProfile({
       ownerSub: OWNER_SUB,

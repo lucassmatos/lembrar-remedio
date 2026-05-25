@@ -888,6 +888,34 @@ export async function markNotifiedForProfile(
   }
 }
 
+/**
+ * Releases a slot claim made by markNotifiedForProfile so a retry can re-send.
+ * Used when every Telegram send for a claimed dose failed — without this the
+ * slot stays claimed forever and the dose is lost silently. Best-effort
+ * Get-then-Put (the failure path is rare; the atomic claim already guards the
+ * common concurrent case).
+ */
+export async function unmarkNotifiedForProfile(
+  profileId: string,
+  date: string,
+  slotKey: string,
+): Promise<void> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.profile(profileId), sk: SK.notified(date) } }),
+  );
+  const keys = (res.Item?.keys ?? []) as string[];
+  if (!keys.includes(slotKey)) return;
+  await doc.send(
+    new UpdateCommand({
+      TableName: TABLE,
+      Key: { pk: PK.profile(profileId), sk: SK.notified(date) },
+      UpdateExpression: "SET #keys = :keys",
+      ExpressionAttributeNames: { "#keys": "keys" },
+      ExpressionAttributeValues: { ":keys": keys.filter((k) => k !== slotKey) },
+    }),
+  );
+}
+
 // ── Share link helpers ───────────────────────────────────────────────────────
 
 export type ProfileWithAccess = {

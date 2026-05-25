@@ -3,6 +3,7 @@ import {
   getLogForProfile,
   getReminderForProfile,
   markNotifiedForProfile,
+  unmarkNotifiedForProfile,
   _internal,
 } from "./ddb";
 import {
@@ -13,7 +14,7 @@ import {
 } from "./schedule";
 import { editMessage, escapeHtml, sendMessage } from "./telegram";
 import { parseMessageKey, sanitizeMessageKey } from "./profile-keys";
-import type { Profile, Reminder } from "./types";
+import type { Reminder } from "./types";
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 export type NotifyInput =
@@ -114,6 +115,52 @@ async function persistMessageRefs(
   }
 }
 
+/**
+ * Sends the notification to every paired member, persists message refs, and
+ * decides the claim's fate. The slot is claimed BEFORE this runs (atomic dedup
+ * against concurrent fires). If every send to a reachable member fails, the
+ * claim is released and a failure is returned so the handler can throw and let
+ * EventBridge retry (2x/300s, within the 60min catch-up) — otherwise a transient
+ * Telegram blip would silently lose the dose.
+ */
+async function fanOutAndClaim(
+  profileId: string,
+  date: string,
+  key: string,
+  memberSubs: string[],
+  text: string,
+  buttons: { text: string; callback_data: string }[][],
+): Promise<NotifyResult> {
+  const refs: Array<{ sub: string; chatId: number; messageId: number }> = [];
+  let attempted = 0;
+  for (const memberSub of memberSubs) {
+    const cfg = await getConfig(memberSub);
+    if (!cfg.chatId) continue;
+    attempted++;
+    try {
+      const { message_id } = await sendMessage({ chatId: cfg.chatId, text, buttons });
+      if (message_id !== undefined) {
+        refs.push({ sub: memberSub, chatId: cfg.chatId, messageId: message_id });
+      }
+    } catch (e) {
+      console.warn(`[notify-one] sendMessage failed for member ${memberSub}:`, e);
+    }
+  }
+
+  if (refs.length > 0) {
+    await persistMessageRefs(profileId, date, key, refs);
+  }
+
+  if (attempted > 0 && refs.length === 0) {
+    await unmarkNotifiedForProfile(profileId, date, key);
+    return { sent: false, reason: "all sends failed" };
+  }
+
+  // sent:true when the claim was won — including the no-paired-member case
+  // (nothing to send, but the dose was meaningfully handled).
+  return { sent: true, key };
+}
+
 export async function notifyOneDose(input: NotifyInput): Promise<NotifyResult> {
   const { profileId, ownerSub, reminderId } = input;
 
@@ -171,29 +218,7 @@ async function sendMedSlot(
     ],
   ];
 
-  // Fan out to all members that have a chatId.
-  const refs: Array<{ sub: string; chatId: number; messageId: number }> = [];
-  for (const memberSub of memberSubs) {
-    const cfg = await getConfig(memberSub);
-    if (!cfg.chatId) continue;
-    try {
-      const { message_id } = await sendMessage({ chatId: cfg.chatId, text, buttons });
-      if (message_id !== undefined) {
-        refs.push({ sub: memberSub, chatId: cfg.chatId, messageId: message_id });
-      }
-    } catch (e) {
-      console.warn(`[notify-one] sendMessage failed for member ${memberSub}:`, e);
-    }
-  }
-
-  // Persist message refs (best-effort, non-fatal).
-  if (refs.length > 0) {
-    await persistMessageRefs(profileId, date, key, refs);
-  }
-
-  // sent:true if the claim was won, regardless of whether any chatId existed.
-  // The notification slot is atomically claimed — that's the meaningful event.
-  return { sent: true, key };
+  return fanOutAndClaim(profileId, date, key, memberSubs, text, buttons);
 }
 
 async function sendOneShot(
@@ -246,27 +271,7 @@ async function sendOneShot(
       ? [[{ text: "✓ Já agendei", callback_data: `agendei:${reminder.id}` }]]
       : [[{ text: "✓ Já fiz", callback_data: `fiz:${reminder.id}` }]];
 
-  // Fan out to all members that have a chatId.
-  const refs: Array<{ sub: string; chatId: number; messageId: number }> = [];
-  for (const memberSub of memberSubs) {
-    const cfg = await getConfig(memberSub);
-    if (!cfg.chatId) continue;
-    try {
-      const { message_id } = await sendMessage({ chatId: cfg.chatId, text, buttons });
-      if (message_id !== undefined) {
-        refs.push({ sub: memberSub, chatId: cfg.chatId, messageId: message_id });
-      }
-    } catch (e) {
-      console.warn(`[notify-one] sendMessage failed for member ${memberSub}:`, e);
-    }
-  }
-
-  if (refs.length > 0) {
-    await persistMessageRefs(profileId, date, key, refs);
-  }
-
-  // sent:true if the claim was won.
-  return { sent: true, key };
+  return fanOutAndClaim(profileId, date, key, memberSubs, text, buttons);
 }
 
 /**
