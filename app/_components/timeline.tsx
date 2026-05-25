@@ -388,72 +388,56 @@ function OneShotRow({
 }) {
   const meta = KIND_META[item.reminder.kind] ?? KIND_META.appointment;
   const unscheduled = item.status === "unscheduled";
-  const kindWord = item.reminder.kind === "vaccine" ? "vacina" : "consulta";
 
   return (
     <li>
-      <div className="grid grid-cols-[56px_1fr] items-start gap-4 py-5">
-        <DateChip eventDate={item.eventDate} eventDays={item.eventDays} />
-        <div className="min-w-0">
-          {/* eyebrow + action share one short line — the title below never
-              collides with the button, so long names wrap freely. */}
-          <div className="flex items-start justify-between gap-3">
-            <p className="flex items-center gap-1.5 pt-1 text-[11px] uppercase tracking-[0.16em]">
-              <span aria-hidden className="text-[13px] leading-none">{meta.icon}</span>
-              <span className="text-ink-faint">{kindWord}</span>
-              <span className="text-ink-faint/40">·</span>
-              <span className={unscheduled ? "text-amber" : "text-ink-soft"}>
-                {unscheduled ? "marque" : "agendado"}
-              </span>
-            </p>
-            {unscheduled ? (
-              <button
-                type="button"
-                onClick={onAgendei}
-                className="shrink-0 rounded-full px-3 py-1.5 text-[12px] text-ink-soft transition-colors hover:text-ink"
-                style={{ border: "1px solid var(--color-edge-2)" }}
-              >
-                já agendei
-              </button>
-            ) : (
-              <div className="flex shrink-0 flex-col items-end gap-1.5 text-[12px]">
-                <button
-                  type="button"
-                  onClick={onFiz}
-                  className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:text-ink"
-                  style={{ border: "1px solid var(--color-edge-2)" }}
-                >
-                  já fiz
-                </button>
-                <button
-                  type="button"
-                  onClick={onDesmarcar}
-                  className="text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-ink"
-                >
-                  desmarcar
-                </button>
-              </div>
-            )}
-          </div>
+      <div className="flex items-center gap-4 py-5">
+        {/* data + owner */}
+        <div className="w-[86px] shrink-0">
+          <DateChip eventDate={item.eventDate} eventDays={item.eventDays} />
+          {profile ? (
+            <div className="mt-2.5 flex items-center gap-1.5 text-[12px] text-ink-faint">
+              <ProfileBadge profile={profile} size={14} />
+              <span className="min-w-0 truncate">{profile.name}</span>
+            </div>
+          ) : null}
+        </div>
 
-          <h3 className="mt-1 font-display text-[20px] leading-snug tracking-tight text-ink">
+        {/* nome + especialidade */}
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-[20px] leading-snug tracking-tight text-ink">
             {item.reminder.title}
           </h3>
-
-          {item.reminder.subtitle || profile ? (
-            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-ink-faint">
-              {item.reminder.subtitle ? <span>{item.reminder.subtitle}</span> : null}
-              {item.reminder.subtitle && profile ? (
-                <span className="text-ink-faint/40">·</span>
-              ) : null}
-              {profile ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <ProfileBadge profile={profile} size={16} />
-                  {profile.name}
-                </span>
-              ) : null}
-            </p>
+          {item.reminder.subtitle ? (
+            <p className="mt-0.5 text-[13px] text-ink-faint">{item.reminder.subtitle}</p>
           ) : null}
+        </div>
+
+        {/* status + ação */}
+        <div className="flex shrink-0 flex-col items-end gap-2 text-[12px]">
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className="text-[12px] leading-none">{meta.icon}</span>
+            <span className={unscheduled ? "font-medium text-amber" : "text-ink-soft"}>
+              {unscheduled ? "Agendar" : "Agendada"}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={unscheduled ? onAgendei : onFiz}
+            className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:text-ink"
+            style={{ border: "1px solid var(--color-edge-2)" }}
+          >
+            {unscheduled ? "já agendei" : "Realizada"}
+          </button>
+          {unscheduled ? null : (
+            <button
+              type="button"
+              onClick={onDesmarcar}
+              className="text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-ink"
+            >
+              desmarcar
+            </button>
+          )}
         </div>
       </div>
     </li>
