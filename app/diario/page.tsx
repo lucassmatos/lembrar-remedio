@@ -38,7 +38,9 @@ export default function DiarioPage() {
           const stored =
             typeof window !== "undefined" ? localStorage.getItem(SELECTED_KEY) : null;
           if (stored && p.some((x) => x.id === stored)) return stored;
-          const def = p.find((x) => x.isDefault) ?? p[0];
+          // Sem seleção salva, prefere um bebê que ainda mama (foco do diário),
+          // depois o perfil padrão, depois o primeiro.
+          const def = p.find((x) => x.aindaMama) ?? p.find((x) => x.isDefault) ?? p[0];
           return def?.id ?? "";
         });
         setMounted(true);
@@ -111,6 +113,7 @@ export default function DiarioPage() {
           tz={tz}
           openNap={openNap}
           lastFeedSide={lastFeedSide}
+          aindaMama={activeProfile?.aindaMama}
         />
       ) : null}
 

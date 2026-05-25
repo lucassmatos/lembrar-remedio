@@ -12,11 +12,13 @@ export function DiaryActions({
   tz,
   openNap,
   lastFeedSide,
+  aindaMama = false,
 }: {
   profileId: string;
   tz: string;
   openNap: NapActivity | null;
   lastFeedSide?: FeedSide;
+  aindaMama?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -92,7 +94,8 @@ export function DiaryActions({
         )}
       </section>
 
-      {/* Alimentação */}
+      {/* Alimentação — só pra bebê que ainda mama */}
+      {aindaMama ? (
       <section
         className="rounded-2xl border border-edge p-5"
         style={{ background: "var(--color-paper-2)" }}
@@ -190,6 +193,7 @@ export function DiaryActions({
           </div>
         )}
       </section>
+      ) : null}
     </div>
   );
 }

@@ -112,7 +112,7 @@ export async function addProfile(name: string, color?: string): Promise<Profile>
 
 export async function updateProfile(
   id: string,
-  patch: { name?: string; color?: string },
+  patch: { name?: string; color?: string; aindaMama?: boolean },
 ): Promise<Profile> {
   const data = await jsonFetch<{ profile: Profile }>(`/api/profiles/${id}`, {
     method: "PATCH",

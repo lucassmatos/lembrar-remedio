@@ -12,6 +12,7 @@ export function ProfilesPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftColor, setDraftColor] = useState<ProfileColor>("sage");
+  const [draftAindaMama, setDraftAindaMama] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -42,6 +43,7 @@ export function ProfilesPanel() {
     setEditingId(p.id);
     setDraftName(p.name);
     setDraftColor(p.color);
+    setDraftAindaMama(!!p.aindaMama);
     setErr(null);
   }
 
@@ -50,7 +52,11 @@ export function ProfilesPanel() {
     setBusy(true);
     setErr(null);
     try {
-      await updateProfile(editingId, { name: draftName.trim(), color: draftColor });
+      await updateProfile(editingId, {
+        name: draftName.trim(),
+        color: draftColor,
+        aindaMama: draftAindaMama,
+      });
       setEditingId(null);
     } catch (e) {
       setErr(humanError(e));
@@ -128,6 +134,28 @@ export function ProfilesPanel() {
                       />
                     ))}
                   </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={draftAindaMama}
+                    onClick={() => setDraftAindaMama((v) => !v)}
+                    className="flex items-center gap-2.5 text-[14px] text-ink-soft hover:text-ink"
+                  >
+                    <span
+                      aria-hidden
+                      className="grid size-5 place-items-center rounded-md text-[12px] text-paper transition-colors"
+                      style={{
+                        background: draftAindaMama ? "var(--color-ink)" : "transparent",
+                        border: draftAindaMama
+                          ? "1px solid var(--color-ink)"
+                          : "1px solid var(--color-edge-2)",
+                      }}
+                    >
+                      {draftAindaMama ? "✓" : ""}
+                    </span>
+                    bebê que ainda mama
+                    <span className="text-ink-faint">· mostra a mamada no diário</span>
+                  </button>
                   <div className="flex items-center gap-4 pt-1">
                     <button
                       type="button"

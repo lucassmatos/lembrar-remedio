@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Shell } from "./_components/shell";
 import { Timeline } from "./_components/timeline";
 import { getActivities, getConfig, getProfiles, getReminders, onChange } from "@/lib/api";
@@ -11,6 +12,7 @@ const WEEKDAY = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "s
 const MONTH = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 export default function TimelinePage() {
+  const router = useRouter();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [openNaps, setOpenNaps] = useState<NapActivity[]>([]);
@@ -29,6 +31,17 @@ export default function TimelinePage() {
           getProfiles(),
         ]);
         if (cancelled) return;
+        // "Tela inicial = Diário": redireciona só uma vez por abertura do app
+        // (sessionStorage), pra clicar em Timeline na nav não ficar preso.
+        if (
+          cfg.startScreen === "diario" &&
+          typeof window !== "undefined" &&
+          !sessionStorage.getItem("lr.startedDiario")
+        ) {
+          sessionStorage.setItem("lr.startedDiario", "1");
+          router.replace("/diario");
+          return;
+        }
         const now = nowInTz(cfg.timezone);
         const view = await getActivities(now.date).catch(() => null);
         if (cancelled) return;

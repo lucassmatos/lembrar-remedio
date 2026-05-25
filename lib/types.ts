@@ -36,6 +36,8 @@ export type Profile = {
   name: string;
   color: ProfileColor;
   isDefault?: boolean;
+  /** Bebê que ainda mama: habilita a seção de mamada no diário. */
+  aindaMama?: boolean;
   createdAt: number;
   ownerSub: string;
   sharedWith: ProfileShareEntry[];
@@ -95,6 +97,8 @@ export type Config = {
   timezone: string;
   email?: string;
   name?: string;
+  /** Tela inicial preferida ao abrir o app. Default: timeline. */
+  startScreen?: "timeline" | "diario";
   createdAt?: number;
 };
 

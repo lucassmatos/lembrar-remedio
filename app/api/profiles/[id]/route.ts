@@ -42,6 +42,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     ...existing,
     name: nextName,
     color: parsed.data.color ?? existing.color,
+    aindaMama: parsed.data.aindaMama ?? existing.aindaMama,
   };
   await putProfile(existing.ownerSub, updated);
   return NextResponse.json({ profile: updated });

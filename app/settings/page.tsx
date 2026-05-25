@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [tz, setTz] = useState("America/Sao_Paulo");
   const [tzBusy, setTzBusy] = useState(false);
+  const [startScreen, setStartScreen] = useState<"timeline" | "diario">("timeline");
   const [installState, setInstallState] = useState<"installed" | "browser" | "unknown">("unknown");
   const [openaiKey, setOpenaiKey] = useState("");
   const [openaiModel, setOpenaiModel] = useState(DEFAULT_OPENAI_MODEL);
@@ -34,6 +35,7 @@ export default function SettingsPage() {
       try {
         const cfg = await getConfig();
         setTz(cfg.timezone);
+        setStartScreen(cfg.startScreen ?? "timeline");
       } catch {
         // ignore
       }
@@ -54,6 +56,16 @@ export default function SettingsPage() {
       await apiSetConfig({ timezone: tz });
     } finally {
       setTzBusy(false);
+    }
+  }
+
+  async function chooseStartScreen(value: "timeline" | "diario") {
+    setStartScreen(value);
+    if (typeof window !== "undefined") sessionStorage.removeItem("lr.startedDiario");
+    try {
+      await apiSetConfig({ startScreen: value });
+    } catch {
+      // ignore
     }
   }
 
@@ -167,6 +179,37 @@ export default function SettingsPage() {
                 </p>
               </div>
             ) : null}
+          </Section>
+
+          <Section label="tela inicial">
+            <div className="flex flex-wrap gap-2">
+              {([
+                { value: "timeline", label: "Timeline" },
+                { value: "diario", label: "Diário" },
+              ] as const).map((o) => {
+                const active = startScreen === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => chooseStartScreen(o.value)}
+                    className={
+                      "rounded-full px-4 py-2 text-[14px] transition-all " +
+                      (active
+                        ? "bg-ink text-paper"
+                        : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
+                    }
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-[13px] text-ink-faint">
+              {startScreen === "diario"
+                ? "O app abre direto no Diário, com o bebê selecionado."
+                : "O app abre na Timeline."}
+            </p>
           </Section>
 
           <Section label="fuso horário">

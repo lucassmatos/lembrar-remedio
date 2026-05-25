@@ -72,7 +72,8 @@ const TimezoneSchema = z
 
 export const ConfigPatchSchema = z
   .object({
-    timezone: TimezoneSchema,
+    timezone: TimezoneSchema.optional(),
+    startScreen: z.enum(["timeline", "diario"]).optional(),
   })
   .strict();
 export type ConfigPatch = z.infer<typeof ConfigPatchSchema>;
@@ -136,6 +137,7 @@ export const ProfilePostSchema = z
   .object({
     name: z.string().min(1).max(40),
     color: z.enum(PROFILE_COLORS).optional(),
+    aindaMama: z.boolean().optional(),
   })
   .strict();
 export type ProfilePost = z.infer<typeof ProfilePostSchema>;
@@ -144,6 +146,7 @@ export const ProfilePatchSchema = z
   .object({
     name: z.string().min(1).max(40).optional(),
     color: z.enum(PROFILE_COLORS).optional(),
+    aindaMama: z.boolean().optional(),
   })
   .strict();
 export type ProfilePatch = z.infer<typeof ProfilePatchSchema>;
