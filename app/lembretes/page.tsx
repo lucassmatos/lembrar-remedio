@@ -100,6 +100,36 @@ export default function LembretesPage() {
       current="lembretes"
       header={
         <section className="mb-8">
+          <div
+            role="tablist"
+            aria-label="Tipo de lembrete"
+            className="mb-7 flex flex-wrap gap-2"
+          >
+            {KIND_ORDER.map((k) => {
+              const m = KIND_META[k];
+              const active = mounted && k === kind;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => chooseKind(k)}
+                  className={
+                    "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] transition-all " +
+                    (active
+                      ? "bg-ink text-paper"
+                      : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
+                  }
+                >
+                  <span aria-hidden className="text-[16px] leading-none">
+                    {m.icon}
+                  </span>
+                  {m.plural}
+                </button>
+              );
+            })}
+          </div>
           <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">
             Lembretes
           </p>
@@ -114,37 +144,6 @@ export default function LembretesPage() {
         </section>
       }
     >
-      <div
-        role="tablist"
-        aria-label="Tipo de lembrete"
-        className="mb-9 flex flex-wrap gap-2"
-      >
-        {KIND_ORDER.map((k) => {
-          const m = KIND_META[k];
-          const active = mounted && k === kind;
-          return (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => chooseKind(k)}
-              className={
-                "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] transition-all " +
-                (active
-                  ? "bg-ink text-paper"
-                  : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
-              }
-            >
-              <span aria-hidden className="text-[16px] leading-none">
-                {m.icon}
-              </span>
-              {m.plural}
-            </button>
-          );
-        })}
-      </div>
-
       {mounted ? (
         <ProfileBar
           profiles={profiles}
