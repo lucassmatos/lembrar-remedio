@@ -2,6 +2,11 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./_components/providers";
+import { NightTheme } from "./_components/night-theme";
+
+// Runs before paint to set the night palette without a bright flash (matters
+// for light-sensitive use at night). Kept in sync afterwards by <NightTheme/>.
+const NIGHT_INIT = `(function(){try{var h=new Date().getHours();if(h>=20||h<8)document.documentElement.setAttribute('data-theme','night');}catch(e){}})();`;
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -36,7 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" className={`${fraunces.variable} ${inter.variable}`}>
       <body className="min-h-dvh">
+        <script dangerouslySetInnerHTML={{ __html: NIGHT_INIT }} />
         <Providers>{children}</Providers>
+        <NightTheme />
       </body>
     </html>
   );
