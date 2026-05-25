@@ -39,7 +39,7 @@ import {
   type InvitePayload,
 } from "@/lib/sharing";
 import { notifyOneDose, notifyOtherMembersOfTaken } from "@/lib/notify-one";
-import { slotKey } from "@/lib/schedule";
+import { nowInTz, slotKey } from "@/lib/schedule";
 import { sendMessage, editMessage } from "@/lib/telegram";
 import type { Reminder } from "@/lib/types";
 
@@ -48,7 +48,10 @@ const MARIA = "google|maria";
 const BABA = "google|baba";
 const PROFILE = "filho1";
 const REMINDER = "dipirona";
-const DATE = "2026-05-24";
+// Must match the date notifyOneDose records under, which is the owner's
+// "today" (timezone UTC here). Hardcoding a date made this test fail once the
+// real clock rolled past it — derive it from the same source instead.
+const DATE = nowInTz("UTC").date;
 const TIME = "08:00";
 const KEY = slotKey(REMINDER, TIME);
 
