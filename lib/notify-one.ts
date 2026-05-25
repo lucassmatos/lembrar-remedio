@@ -4,8 +4,11 @@ import {
   getReminderForProfile,
   markNotifiedForProfile,
   unmarkNotifiedForProfile,
+  listPushSubs,
+  deletePushSub,
   _internal,
 } from "./ddb";
+import { sendWebPush } from "./push";
 import {
   formatBrDate,
   nowInTz,
@@ -123,41 +126,70 @@ async function persistMessageRefs(
  * EventBridge retry (2x/300s, within the 60min catch-up) — otherwise a transient
  * Telegram blip would silently lose the dose.
  */
+type TelegramMsg = { text: string; buttons: { text: string; callback_data: string }[][] };
+type PushMsg = { title: string; body: string; url: string };
+
 async function fanOutAndClaim(
   profileId: string,
   date: string,
   key: string,
   memberSubs: string[],
-  text: string,
-  buttons: { text: string; callback_data: string }[][],
+  telegram: TelegramMsg,
+  push: PushMsg,
 ): Promise<NotifyResult> {
   const refs: Array<{ sub: string; chatId: number; messageId: number }> = [];
-  let attempted = 0;
+  let attempted = 0; // members with at least one channel to try
+  let reached = 0; // members reached on at least one channel
+
   for (const memberSub of memberSubs) {
     const cfg = await getConfig(memberSub);
-    if (!cfg.chatId) continue;
+    const subs = await listPushSubs(memberSub);
+    const hasTelegram = !!cfg.chatId;
+    if (!hasTelegram && subs.length === 0) continue;
     attempted++;
-    try {
-      const { message_id } = await sendMessage({ chatId: cfg.chatId, text, buttons });
-      if (message_id !== undefined) {
-        refs.push({ sub: memberSub, chatId: cfg.chatId, messageId: message_id });
+    let ok = false;
+
+    if (hasTelegram) {
+      try {
+        const { message_id } = await sendMessage({
+          chatId: cfg.chatId as number,
+          text: telegram.text,
+          buttons: telegram.buttons,
+        });
+        ok = true;
+        if (message_id !== undefined) {
+          refs.push({ sub: memberSub, chatId: cfg.chatId as number, messageId: message_id });
+        }
+      } catch (e) {
+        console.warn(`[notify-one] sendMessage failed for member ${memberSub}:`, e);
       }
-    } catch (e) {
-      console.warn(`[notify-one] sendMessage failed for member ${memberSub}:`, e);
     }
+
+    for (const s of subs) {
+      const res = await sendWebPush(
+        { endpoint: s.endpoint, keys: s.keys },
+        { title: push.title, body: push.body, url: push.url, tag: key },
+      );
+      if (res.ok) ok = true;
+      else if (res.gone) await deletePushSub(memberSub, s.id);
+    }
+
+    if (ok) reached++;
   }
 
   if (refs.length > 0) {
     await persistMessageRefs(profileId, date, key, refs);
   }
 
-  if (attempted > 0 && refs.length === 0) {
+  // Every channel to every reachable member failed: release the claim so
+  // EventBridge retries. Partial success (any channel, any member) keeps it.
+  if (attempted > 0 && reached === 0) {
     await unmarkNotifiedForProfile(profileId, date, key);
     return { sent: false, reason: "all sends failed" };
   }
 
-  // sent:true when the claim was won — including the no-paired-member case
-  // (nothing to send, but the dose was meaningfully handled).
+  // sent:true when the claim was won — including the no-channel case (nothing to
+  // send, but the dose was meaningfully handled).
   return { sent: true, key };
 }
 
@@ -218,7 +250,18 @@ async function sendMedSlot(
     ],
   ];
 
-  return fanOutAndClaim(profileId, date, key, memberSubs, text, buttons);
+  return fanOutAndClaim(
+    profileId,
+    date,
+    key,
+    memberSubs,
+    { text, buttons },
+    {
+      title: `💊 ${reminder.title}${profileName ? ` · ${profileName}` : ""}`,
+      body: `${reminder.subtitle ? `${reminder.subtitle} · ` : ""}${time}`,
+      url: "/",
+    },
+  );
 }
 
 async function sendOneShot(
@@ -271,7 +314,18 @@ async function sendOneShot(
       ? [[{ text: "✓ Já agendei", callback_data: `agendei:${reminder.id}` }]]
       : [[{ text: "✓ Já fiz", callback_data: `fiz:${reminder.id}` }]];
 
-  return fanOutAndClaim(profileId, date, key, memberSubs, text, buttons);
+  return fanOutAndClaim(
+    profileId,
+    date,
+    key,
+    memberSubs,
+    { text, buttons },
+    {
+      title: `${label.icon} ${reminder.title}${profileName ? ` · ${profileName}` : ""}`,
+      body: `${label.noun} · ${lc}${reminder.subtitle ? ` · ${reminder.subtitle}` : ""}`,
+      url: "/lembretes",
+    },
+  );
 }
 
 /**

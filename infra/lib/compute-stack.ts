@@ -16,6 +16,7 @@ const NOTIFY_DOSE_FN_NAME = "lembrar-remedio-notify-dose";
 const SYNC_FN_NAME = "lembrar-remedio-schedule-sync";
 const SCHEDULER_ROLE_NAME = "lembrar-remedio-scheduler-invoke";
 const TELEGRAM_TOKEN_SECRET_NAME = "lembrar-remedio/telegram-bot-token";
+const VAPID_PRIVATE_KEY_SECRET_NAME = "lembrar-remedio/vapid-private-key";
 
 export class ComputeStack extends cdk.Stack {
   public readonly notifyDoseFn: nodejs.NodejsFunction;
@@ -48,6 +49,13 @@ export class ComputeStack extends cdk.Stack {
       "TelegramBotTokenSecret",
       TELEGRAM_TOKEN_SECRET_NAME,
     );
+    // Web Push (VAPID) private key — loaded at cold start via ensureVapid() in
+    // lib/push.ts. Public key is hardcoded (client-safe) in lib/vapid-public.ts.
+    const vapidPrivateKeySecret = sm.Secret.fromSecretNameV2(
+      this,
+      "VapidPrivateKeySecret",
+      VAPID_PRIVATE_KEY_SECRET_NAME,
+    );
 
     // notify-dose Lambda — chamado pelo schedule do perfil, processa todas as
     // doses devidas naquele momento e reagenda pro próximo nextAt.
@@ -63,6 +71,7 @@ export class ComputeStack extends cdk.Stack {
       environment: {
         DDB_TABLE_NAME: props.table.tableName,
         TELEGRAM_BOT_TOKEN_SECRET_ARN: telegramTokenSecret.secretArn,
+        VAPID_PRIVATE_KEY_SECRET_ARN: vapidPrivateKeySecret.secretArn,
         NOTIFY_DOSE_LAMBDA_ARN: notifyDoseFnArn,
         SCHEDULER_ROLE_ARN: schedulerRoleArn,
       },
@@ -71,6 +80,7 @@ export class ComputeStack extends cdk.Stack {
     });
     props.table.grantReadWriteData(this.notifyDoseFn);
     telegramTokenSecret.grantRead(this.notifyDoseFn);
+    vapidPrivateKeySecret.grantRead(this.notifyDoseFn);
 
     // notify-dose reagenda a si própria.
     this.notifyDoseFn.addToRolePolicy(

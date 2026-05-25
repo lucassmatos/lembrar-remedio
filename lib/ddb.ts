@@ -7,6 +7,7 @@ import {
   QueryCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
+import { createHash } from "node:crypto";
 import { nanoid } from "nanoid";
 import type {
   Activity,
@@ -69,6 +70,7 @@ const SK = {
   userIndex: (sub: string) => `user#${sub}`,
   shareLink: (ownerSub: string, profileId: string) =>
     `shared#${ownerSub}#${profileId}`,
+  pushSub: (id: string) => `pushsub#${id}`,
 };
 
 export async function ensureUser(
@@ -913,6 +915,61 @@ export async function unmarkNotifiedForProfile(
       ExpressionAttributeNames: { "#keys": "keys" },
       ExpressionAttributeValues: { ":keys": keys.filter((k) => k !== slotKey) },
     }),
+  );
+}
+
+// ── Web Push subscriptions ─────────────────────────────────────────────────
+
+export type StoredPushSub = {
+  id: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  createdAt: number;
+};
+
+type PushSubInput = { endpoint: string; keys: { p256dh: string; auth: string } };
+
+/** Stable id per device, derived from the (long) endpoint URL. */
+export function pushSubId(endpoint: string): string {
+  return createHash("sha256").update(endpoint).digest("base64url").slice(0, 24);
+}
+
+export async function putPushSub(sub: string, s: PushSubInput): Promise<void> {
+  const id = pushSubId(s.endpoint);
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: {
+        pk: PK.user(sub),
+        sk: SK.pushSub(id),
+        id,
+        endpoint: s.endpoint,
+        keys: s.keys,
+        createdAt: Date.now(),
+      },
+    }),
+  );
+}
+
+export async function listPushSubs(sub: string): Promise<StoredPushSub[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :s)",
+      ExpressionAttributeValues: { ":pk": PK.user(sub), ":s": "pushsub#" },
+    }),
+  );
+  return (res.Items ?? []).map((it) => ({
+    id: it.id as string,
+    endpoint: it.endpoint as string,
+    keys: it.keys as { p256dh: string; auth: string },
+    createdAt: (it.createdAt as number) ?? 0,
+  }));
+}
+
+export async function deletePushSub(sub: string, id: string): Promise<void> {
+  await doc.send(
+    new DeleteCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.pushSub(id) } }),
   );
 }
 

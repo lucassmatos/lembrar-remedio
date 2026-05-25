@@ -211,6 +211,23 @@ export const ActivityPatchSchema = z
   .strict();
 export type ActivityPatch = z.infer<typeof ActivityPatchSchema>;
 
+export const PushSubscribeSchema = z
+  .object({
+    endpoint: z.string().url().max(1000),
+    keys: z
+      .object({
+        p256dh: z.string().min(1).max(200),
+        auth: z.string().min(1).max(200),
+      })
+      .strict(),
+  })
+  .strict();
+export type PushSubscribe = z.infer<typeof PushSubscribeSchema>;
+
+export const PushUnsubscribeSchema = z
+  .object({ endpoint: z.string().url().max(1000) })
+  .strict();
+
 export const LogPostSchema = z
   .object({
     date: z.string().regex(ISO_DATE, "YYYY-MM-DD").optional(),
