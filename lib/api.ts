@@ -128,6 +128,11 @@ export async function deleteProfile(id: string): Promise<void> {
   emit("reminders");
 }
 
+export async function disconnectTelegram(): Promise<void> {
+  await jsonFetch("/api/telegram/disconnect", { method: "POST" });
+  emit("config");
+}
+
 export async function sendTestNotification(
   channel: "push" | "telegram",
 ): Promise<{ telegram?: string; push?: string }> {

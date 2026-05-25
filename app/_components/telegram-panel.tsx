@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getConfig, setConfig, sendTestNotification } from "@/lib/api";
+import { getConfig, disconnectTelegram, sendTestNotification } from "@/lib/api";
 
 type Mode = "loading" | "unpaired" | "pairing" | "paired";
 
@@ -10,6 +10,7 @@ export function TelegramPanel() {
   const [chatId, setChatId] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const modeRef = useRef<Mode>(mode);
   modeRef.current = mode;
 
@@ -73,13 +74,15 @@ export function TelegramPanel() {
   }, []);
 
   async function disconnect() {
-    if (!confirm("Desconectar o Telegram?")) return;
+    setErr(null);
     try {
-      await setConfig({ chatId: undefined });
+      await disconnectTelegram();
       setChatId(null);
       setMode("unpaired");
     } catch {
       setErr("erro ao desconectar");
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -95,13 +98,34 @@ export function TelegramPanel() {
             <span style={{ color: "var(--color-sage)" }}>conectado</span>{" "}
             <span className="tnum text-ink-faint">#{chatId}</span>
           </p>
-          <button
-            type="button"
-            onClick={disconnect}
-            className="text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-clay"
-          >
-            desconectar
-          </button>
+          {confirming ? (
+            <span className="flex shrink-0 items-center gap-3 text-[13px]">
+              <span className="text-ink-faint">desconectar?</span>
+              <button
+                type="button"
+                onClick={disconnect}
+                className="underline decoration-edge-2 underline-offset-4"
+                style={{ color: "var(--color-clay)" }}
+              >
+                sim
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+              >
+                não
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-clay"
+            >
+              desconectar
+            </button>
+          )}
         </div>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink-faint">
           Lembretes chegam no Telegram. Toque em "✓ Tomei" ou "Pular" pra
