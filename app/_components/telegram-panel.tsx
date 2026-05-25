@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getConfig, setConfig } from "@/lib/api";
+import { getConfig, setConfig, sendTestNotification } from "@/lib/api";
 
 type Mode = "loading" | "unpaired" | "pairing" | "paired";
 
@@ -9,8 +9,19 @@ export function TelegramPanel() {
   const [mode, setMode] = useState<Mode>("loading");
   const [chatId, setChatId] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
   const modeRef = useRef<Mode>(mode);
   modeRef.current = mode;
+
+  async function test() {
+    setTestMsg("enviando…");
+    try {
+      const r = await sendTestNotification("telegram");
+      setTestMsg(r.telegram === "sent" ? "enviado ✓ — olha o Telegram" : "falhou");
+    } catch {
+      setTestMsg("erro ao enviar");
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -96,6 +107,17 @@ export function TelegramPanel() {
           Lembretes chegam no Telegram. Toque em "✓ Tomei" ou "Pular" pra
           marcar — sincroniza com o app na hora.
         </p>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={test}
+            className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:text-ink"
+            style={{ border: "1px solid var(--color-edge-2)" }}
+          >
+            enviar teste
+          </button>
+          {testMsg ? <span className="text-[13px] text-ink-faint">{testMsg}</span> : null}
+        </div>
       </div>
     );
   }

@@ -128,6 +128,16 @@ export async function deleteProfile(id: string): Promise<void> {
   emit("reminders");
 }
 
+export async function sendTestNotification(
+  channel: "push" | "telegram",
+): Promise<{ telegram?: string; push?: string }> {
+  const data = await jsonFetch<{ result: { telegram?: string; push?: string } }>(
+    "/api/notify/test",
+    { method: "POST", body: JSON.stringify({ channel }) },
+  );
+  return data.result;
+}
+
 export type ActivitiesView = {
   date: string;
   activities: Activity[];

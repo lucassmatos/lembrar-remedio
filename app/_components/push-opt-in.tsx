@@ -8,11 +8,29 @@ import {
   isIosBrowserNotInstalled,
   type PushState,
 } from "@/lib/push-client";
+import { sendTestNotification } from "@/lib/api";
 
 export function PushOptIn() {
   const [state, setState] = useState<PushState | "loading">("loading");
   const [busy, setBusy] = useState(false);
   const [iosHint, setIosHint] = useState(false);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
+
+  async function test() {
+    setTestMsg("enviando…");
+    try {
+      const r = await sendTestNotification("push");
+      setTestMsg(
+        r.push === "sent"
+          ? "enviado ✓ — trava a tela e veja chegar"
+          : r.push === "no-device"
+            ? "nenhum aparelho ativado"
+            : "falhou",
+      );
+    } catch {
+      setTestMsg("erro ao enviar");
+    }
+  }
 
   useEffect(() => {
     setIosHint(isIosBrowserNotInstalled());
@@ -40,18 +58,31 @@ export function PushOptIn() {
   return (
     <div>
       {state === "subscribed" ? (
-        <div className="flex items-baseline justify-between gap-4">
-          <p className="font-display text-[22px] leading-tight tracking-tight">
-            <span style={{ color: "var(--color-sage)" }}>ativado neste aparelho</span>
-          </p>
-          <button
-            type="button"
-            onClick={disable}
-            disabled={busy}
-            className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-clay disabled:opacity-50"
-          >
-            desativar
-          </button>
+        <div>
+          <div className="flex items-baseline justify-between gap-4">
+            <p className="font-display text-[22px] leading-tight tracking-tight">
+              <span style={{ color: "var(--color-sage)" }}>ativado neste aparelho</span>
+            </p>
+            <button
+              type="button"
+              onClick={disable}
+              disabled={busy}
+              className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-clay disabled:opacity-50"
+            >
+              desativar
+            </button>
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={test}
+              className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:text-ink"
+              style={{ border: "1px solid var(--color-edge-2)" }}
+            >
+              enviar teste
+            </button>
+            {testMsg ? <span className="text-[13px] text-ink-faint">{testMsg}</span> : null}
+          </div>
         </div>
       ) : state === "denied" ? (
         <p className="text-[14px] leading-relaxed text-ink-soft">
