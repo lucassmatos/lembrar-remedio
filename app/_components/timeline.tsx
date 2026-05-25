@@ -231,6 +231,7 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
                 item={item}
                 profile={showProfile ? profileById.get(item.reminder.profileId) : undefined}
                 onAgendei={() => setStatus(item.reminder.id, "scheduled")}
+                onDesmarcar={() => setStatus(item.reminder.id, "unscheduled")}
                 onFiz={() => setStatus(item.reminder.id, "done")}
               />
             ))}
@@ -250,6 +251,7 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
                 item={item}
                 profile={showProfile ? profileById.get(item.reminder.profileId) : undefined}
                 onAgendei={() => setStatus(item.reminder.id, "scheduled")}
+                onDesmarcar={() => setStatus(item.reminder.id, "unscheduled")}
                 onFiz={() => setStatus(item.reminder.id, "done")}
               />
             ))}
@@ -344,7 +346,7 @@ function DoseRow({
           >
             <span aria-hidden className="text-[15px] leading-none">💊</span>
             {profile ? <ProfileBadge profile={profile} size={20} /> : null}
-            <span className="min-w-0 truncate">{slot.reminder.title}</span>
+            <span className="min-w-0">{slot.reminder.title}</span>
           </div>
           <div className="mt-1 text-[13px] tnum text-ink-faint">
             {slot.reminder.subtitle
@@ -375,11 +377,13 @@ function OneShotRow({
   item,
   profile,
   onAgendei,
+  onDesmarcar,
   onFiz,
 }: {
   item: OneShotEntry;
   profile?: Profile;
   onAgendei: () => void;
+  onDesmarcar: () => void;
   onFiz: () => void;
 }) {
   const meta = KIND_META[item.reminder.kind] ?? KIND_META.appointment;
@@ -396,7 +400,7 @@ function OneShotRow({
           <div className="flex items-center gap-2 font-display text-[19px] leading-tight tracking-tight text-ink">
             <span aria-hidden className="text-[15px] leading-none">{meta.icon}</span>
             {profile ? <ProfileBadge profile={profile} size={20} /> : null}
-            <span className="min-w-0 truncate">
+            <span className="min-w-0">
               <span className={unscheduled ? "text-amber" : "text-ink-soft"}>{noun}</span>
               <span className="mx-1.5 text-ink-faint/60">·</span>
               {item.reminder.title}
@@ -423,14 +427,23 @@ function OneShotRow({
               já agendei
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={onFiz}
-              className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:text-ink"
-              style={{ border: "1px solid var(--color-edge-2)" }}
-            >
-              já fiz
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onDesmarcar}
+                className="text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-ink"
+              >
+                desmarcar
+              </button>
+              <button
+                type="button"
+                onClick={onFiz}
+                className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:text-ink"
+                style={{ border: "1px solid var(--color-edge-2)" }}
+              >
+                já fiz
+              </button>
+            </>
           )}
         </div>
       </div>

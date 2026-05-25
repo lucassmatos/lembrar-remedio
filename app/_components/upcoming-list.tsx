@@ -185,12 +185,30 @@ export function UpcomingList({
                           </button>
                         ) : null}
                         {tab === "upcoming" && reminder.status === "scheduled" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setStatus(reminder.id, "unscheduled")}
+                              className="text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+                            >
+                              desmarcar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setStatus(reminder.id, "done")}
+                              className="text-ink-soft underline decoration-edge-2 underline-offset-4 hover:text-ink"
+                            >
+                              fiz
+                            </button>
+                          </>
+                        ) : null}
+                        {tab === "history" && reminder.status === "done" ? (
                           <button
                             type="button"
-                            onClick={() => setStatus(reminder.id, "done")}
+                            onClick={() => setStatus(reminder.id, "scheduled")}
                             className="text-ink-soft underline decoration-edge-2 underline-offset-4 hover:text-ink"
                           >
-                            fiz
+                            reabrir
                           </button>
                         ) : null}
                         <button

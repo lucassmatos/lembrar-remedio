@@ -8,7 +8,14 @@ import {
   type OneShotSchedule,
   type Reminder,
   type ReminderKind,
+  type ReminderStatus,
 } from "@/lib/types";
+
+const STATUS_OPTIONS: { value: ReminderStatus; label: string }[] = [
+  { value: "unscheduled", label: "à marcar" },
+  { value: "scheduled", label: "agendado" },
+  { value: "done", label: "feito" },
+];
 
 const LEAD_CHIPS = [30, 15, 7, 3, 1, 0];
 
@@ -62,6 +69,7 @@ export function OneShotForm({
   const [time, setTime] = useState(oneShot?.time ?? "");
   const initialLeads = editing ? leadsFromReminder(reminder) : defaultLeadsFor(defaultKind);
   const [leads, setLeads] = useState<number[]>(initialLeads);
+  const [status, setStatus] = useState<ReminderStatus>(reminder?.status ?? "unscheduled");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -103,6 +111,7 @@ export function OneShotForm({
           schedule,
           preLeadDays,
           postLeadDays,
+          status,
         });
       } else {
         saved = await addReminder({
@@ -223,6 +232,34 @@ export function OneShotForm({
             : ""}
         </p>
       </div>
+
+      {editing ? (
+        <div>
+          <label className="mb-3 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
+            Estado
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            {STATUS_OPTIONS.map((o) => {
+              const active = status === o.value;
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setStatus(o.value)}
+                  className={
+                    "rounded-full px-3.5 py-1.5 text-[14px] transition-all " +
+                    (active
+                      ? "bg-ink text-paper"
+                      : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
+                  }
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {err ? (
         <p className="text-[14px]" style={{ color: "var(--color-clay)" }}>
