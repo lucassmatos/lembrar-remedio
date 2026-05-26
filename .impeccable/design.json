@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-26T00:00:00Z",
+  "title": "Design System: lembrar-remedio",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "primary",
+        "displayName": "Grafite Quente",
+        "canonical": "oklch(0.22 0.012 60)",
+        "tonalRamp": ["oklch(0.15 0.012 60)", "oklch(0.22 0.012 60)", "oklch(0.32 0.012 60)", "oklch(0.42 0.012 60)", "oklch(0.55 0.012 62)", "oklch(0.68 0.011 65)", "oklch(0.82 0.009 70)", "oklch(0.95 0.006 75)"]
+      },
+      "sage": {
+        "role": "secondary",
+        "displayName": "Sálvia",
+        "canonical": "oklch(0.62 0.07 145)",
+        "tonalRamp": ["oklch(0.3 0.05 145)", "oklch(0.4 0.06 145)", "oklch(0.5 0.07 145)", "oklch(0.62 0.07 145)", "oklch(0.72 0.06 145)", "oklch(0.82 0.05 145)", "oklch(0.92 0.035 145)", "oklch(0.97 0.02 145)"]
+      },
+      "amber": {
+        "role": "secondary",
+        "displayName": "Âmbar",
+        "canonical": "oklch(0.74 0.13 75)",
+        "tonalRamp": ["oklch(0.4 0.09 70)", "oklch(0.52 0.11 72)", "oklch(0.64 0.13 74)", "oklch(0.74 0.13 75)", "oklch(0.83 0.11 78)", "oklch(0.9 0.08 80)", "oklch(0.95 0.06 80)", "oklch(0.98 0.03 80)"]
+      },
+      "clay": {
+        "role": "secondary",
+        "displayName": "Barro",
+        "canonical": "oklch(0.62 0.1 35)",
+        "tonalRamp": ["oklch(0.34 0.07 35)", "oklch(0.44 0.085 35)", "oklch(0.54 0.095 35)", "oklch(0.62 0.1 35)", "oklch(0.72 0.085 37)", "oklch(0.84 0.06 40)", "oklch(0.94 0.04 40)", "oklch(0.97 0.02 40)"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Papel",
+        "canonical": "oklch(0.985 0.005 75)",
+        "tonalRamp": ["oklch(0.16 0.006 60)", "oklch(0.28 0.008 65)", "oklch(0.48 0.009 70)", "oklch(0.62 0.009 72)", "oklch(0.78 0.008 74)", "oklch(0.9 0.007 75)", "oklch(0.965 0.006 75)", "oklch(0.985 0.005 75)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Título da tela. Um por tela." },
+      "headline": { "displayName": "Headline", "purpose": "Pivô dentro da tela, ex.: rótulo de dia no Diário." },
+      "title": { "displayName": "Title", "purpose": "Nome de item na lista, evento da timeline." },
+      "body": { "displayName": "Body", "purpose": "Texto corrido e opções de botão; 65–75ch." },
+      "label": { "displayName": "Label", "purpose": "Anunciador de seção, caixa-alta espaçada." },
+      "numeric": { "displayName": "Numeric", "purpose": "Horários, durações, volumes; tabular." }
+    },
+    "shadows": [
+      { "name": "pulse-amber", "value": "0 0 0 0 color-mix(in oklab, oklch(0.74 0.13 75) 30%, transparent)", "purpose": "Anel pulsante (ring-pulse 2.6s) que sinaliza estado ao vivo, ex.: cronômetro de soneca. Único uso de sombra; é movimento, não elevação." }
+    ],
+    "motion": [
+      { "name": "ease-out-quint", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Easing padrão de entrada (slide-up 320ms). Desacelera natural, sem bounce." },
+      { "name": "ring-pulse", "value": "ring-pulse 2.6s ease-in-out infinite", "purpose": "Pulso de anel âmbar pra estado vivo/atenção." },
+      { "name": "transition-colors", "value": "color/background 150ms", "purpose": "Feedback de hover/seleção; nunca anima propriedade de layout." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação primária de bloco. Única superfície escura cheia da tela.",
+      "html": "<button class=\"ds-btn-primary\">Começar soneca</button>",
+      "css": ".ds-btn-primary { background: var(--color-ink); color: var(--color-paper); border: none; border-radius: 9999px; padding: 16px 24px; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-weight: 500; cursor: pointer; transition: opacity 150ms ease; } .ds-btn-primary:hover { opacity: 0.9; } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; cursor: default; }"
+    },
+    {
+      "name": "Profile Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Seletor de pessoa. Inativo com borda + bolinha de cor; ativo preenche com a cor.",
+      "html": "<button class=\"ds-chip\"><span class=\"ds-chip-dot\"></span>Dev</button>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; border: 1px solid var(--color-edge-2); background: transparent; color: var(--color-ink-soft); padding: 6px 14px; font-family: Inter, system-ui, sans-serif; font-size: 14px; cursor: pointer; transition: color 150ms ease; } .ds-chip:hover { color: var(--color-ink); } .ds-chip-dot { width: 8px; height: 8px; border-radius: 9999px; background: var(--color-sage); } .ds-chip[aria-pressed=\"true\"] { background: var(--color-ink); color: var(--color-paper); border-color: transparent; } .ds-chip[aria-pressed=\"true\"] .ds-chip-dot { display: none; }"
+    },
+    {
+      "name": "Section Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Card de seção (ex.: soneca, alimentação). Abre com rótulo caixa-alta; profundidade tonal, sem sombra.",
+      "html": "<section class=\"ds-card\"><p class=\"ds-card-label\">soneca</p><div class=\"ds-card-body\">conteúdo da seção</div></section>",
+      "css": ".ds-card { border-radius: 1rem; border: 1px solid var(--color-edge); background: var(--color-paper-2); padding: 1.25rem; } .ds-card-label { margin: 0 0 0.75rem; font-family: Inter, system-ui, sans-serif; font-size: 12px; line-height: 1.2; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-ink-faint); } .ds-card-body { color: var(--color-ink); font-family: Inter, system-ui, sans-serif; font-size: 15px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de texto. Borda escurece no foco, sem glow.",
+      "html": "<input class=\"ds-input\" placeholder=\"nome\" />",
+      "css": ".ds-input { border: 1px solid var(--color-edge-2); background: var(--color-paper); color: var(--color-ink); border-radius: 0.5rem; padding: 8px 14px; font-family: Inter, system-ui, sans-serif; font-size: 16px; outline: none; transition: border-color 150ms ease; } .ds-input::placeholder { color: color-mix(in oklab, var(--color-ink-faint) 60%, transparent); } .ds-input:focus { border-color: var(--color-ink); }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Escolha exclusiva (ex.: peito/mamadeira/extração). Segmento ativo preenche ink.",
+      "html": "<div class=\"ds-seg\"><button class=\"ds-seg-opt\" aria-pressed=\"true\">Peito</button><button class=\"ds-seg-opt\">Mamadeira</button><button class=\"ds-seg-opt\">Extração</button></div>",
+      "css": ".ds-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; border-radius: 9999px; border: 1px solid var(--color-edge-2); padding: 4px; } .ds-seg-opt { border: none; background: transparent; border-radius: 9999px; padding: 8px 0; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 500; color: var(--color-ink-soft); cursor: pointer; transition: color 150ms ease; } .ds-seg-opt:hover { color: var(--color-ink); } .ds-seg-opt[aria-pressed=\"true\"] { background: var(--color-ink); color: var(--color-paper); }"
+    },
+    {
+      "name": "Day Stepper",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Componente-assinatura: cabeçalho serif do dia + chevrons agrupados num pílula único, com régua embaixo. Nunca setas soltas.",
+      "html": "<div class=\"ds-daynav\"><h2 class=\"ds-daynav-label\">Hoje</h2><div class=\"ds-step\"><button class=\"ds-step-btn\" aria-label=\"dia anterior\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M10 3.5 5.5 8l4.5 4.5\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button><span class=\"ds-step-div\"></span><button class=\"ds-step-btn\" aria-label=\"próximo dia\" disabled><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\"><path d=\"M6 3.5 10.5 8 6 12.5\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button></div></div>",
+      "css": ".ds-daynav { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--color-edge); padding-bottom: 12px; } .ds-daynav-label { margin: 0; font-family: Fraunces, Georgia, serif; font-size: 24px; line-height: 1; letter-spacing: -0.01em; color: var(--color-ink); } .ds-step { display: inline-flex; align-items: center; border: 1px solid var(--color-edge-2); border-radius: 9999px; } .ds-step-btn { display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; background: transparent; border: none; color: var(--color-ink-soft); cursor: pointer; transition: color 150ms ease; } .ds-step-btn:hover { color: var(--color-ink); } .ds-step-btn:disabled { opacity: 0.3; pointer-events: none; } .ds-step-div { width: 1px; height: 20px; background: var(--color-edge-2); }"
+    },
+    {
+      "name": "Category Dot Row",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Componente-assinatura: linha de registro do Diário. Bolinha de cor (sage=sono, amber=mamada) + nome serif, detalhe tabular indentado. Substitui emoji.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-row-dot\"></span><span class=\"ds-row-name\">Soneca</span><div class=\"ds-row-detail\">23:00–01:00 · 2h</div></div>",
+      "css": ".ds-row { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 10px; } .ds-row-dot { width: 8px; height: 8px; border-radius: 9999px; background: var(--color-sage); } .ds-row-name { font-family: Fraunces, Georgia, serif; font-size: 18px; letter-spacing: -0.01em; color: var(--color-ink); } .ds-row-detail { grid-column: 2; padding-left: 0; margin-top: 4px; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-feature-settings: 'tnum'; color: var(--color-ink-soft); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Caderno de Cuidado",
+    "overview": "A tela é uma página de caderno quente, não um painel de app. Quem usa é mãe, pai ou cuidador, muitas vezes com uma mão só, às vezes às 3h da manhã com o bebê no colo. O sistema precisa ser calmo, legível de relance e respeitoso com o cansaço de quem cuida. A serifa Fraunces dá voz humana aos títulos e aos nomes do que aconteceu; a Inter cuida do trabalho de leitura miúda. O sistema rejeita o 'app chinês': telas sem seções claras, hierarquia chapada, e poluição de emoji como decoração. Cor é rara e sempre carrega significado. Existe um tema noturno automático (20h–08h) porque parte real do uso é de madrugada.",
+    "keyCharacteristics": [
+      "Papel quente + grafite quente; zero branco/preto puro.",
+      "Serifa Fraunces pra voz; Inter pra leitura; tabular pra números.",
+      "Seções sempre anunciadas (rótulo caixa-alta + régua ou card).",
+      "Acento de cor ≤10% da tela, sempre semântico.",
+      "Plano por padrão; profundidade por camada tonal, não por sombra.",
+      "Ciente da madrugada (tema noturno automático)."
+    ],
+    "rules": [
+      { "name": "A Regra da Voz Rara", "body": "Os acentos (sage/amber/clay) ocupam ≤10% de qualquer tela e nunca são decoração. A ação primária é grafite (ink), não colorida.", "section": "colors" },
+      { "name": "A Regra do Neutro Quente", "body": "Todo neutro puxa pro hue 60–75. #000 e #fff são proibidos; cinza puro nunca.", "section": "colors" },
+      { "name": "A Regra do Serif com Parcimônia", "body": "Fraunces só em título de tela, nome de seção e nome de item. Corpo, botões e rótulos são Inter.", "section": "typography" },
+      { "name": "A Regra do Número Tabular", "body": "Todo horário, duração e volume usa .tnum.", "section": "typography" },
+      { "name": "A Regra do Plano por Padrão", "body": "Superfícies são planas em repouso. A única sombra é o pulso âmbar, e só como resposta a estado vivo.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do anunciar toda seção com um rótulo Label (Inter 12px caixa-alta, 0.16em, ink-faint) e separar blocos com régua edge ou card paper-2.",
+      "Do usar a bolinha de categoria (8px, sage/amber) pra diferenciar tipos numa lista.",
+      "Do manter a ação primária em grafite (ink); reserve cor pra significado semântico.",
+      "Do usar .tnum em todo horário, duração e volume.",
+      "Do agrupar controles relacionados num só contêiner com borda, com divisória fina entre eles.",
+      "Do respeitar o tema noturno: cores via token, nunca hex fixo."
+    ],
+    "donts": [
+      "Don't usar emoji como ícone de categoria (😴 🤱 🍼 🥛). Use a bolinha de cor.",
+      "Don't deixar a tela virar 'app chinês': blocos sem rótulo, sem régua, sem hierarquia.",
+      "Don't usar #000/#fff nem cinza puro. Neutro é sempre quente (hue 60–75).",
+      "Don't botar setas soltas flutuando; agrupe navegação num pílula único.",
+      "Don't colocar drop-shadow de descanso em card. Profundidade é tonal.",
+      "Don't usar serifa em texto miúdo, botão ou rótulo.",
+      "Don't pintar mais que ~10% da tela com acento."
+    ]
+  }
+}
