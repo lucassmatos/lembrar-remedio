@@ -63,11 +63,13 @@ export function DiaryActions({
         {openNap ? (
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div
-                className="flex items-center gap-2 font-display text-[22px] tracking-tight text-ink"
-                style={{ animation: "ring-pulse 2.4s ease-in-out infinite", borderRadius: 12 }}
-              >
-                <span aria-hidden>😴</span> dormindo
+              <div className="flex items-center gap-2.5 font-display text-[22px] tracking-tight text-ink">
+                <span
+                  aria-hidden
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ background: "var(--color-sage)" }}
+                />
+                dormindo
               </div>
               <div className="mt-1 text-[13px] text-ink-soft tnum">
                 desde {clock(openNap.startedAt, tz)} · {formatDuration(now - openNap.startedAt)}

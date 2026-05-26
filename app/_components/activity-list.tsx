@@ -7,12 +7,21 @@ import {
   activityTime,
   buildSummary,
   clock,
-  FEED_ICON,
   FEED_NOUN,
   feedDetail,
   formatDuration,
   nextSide,
 } from "@/lib/activity";
+
+function Dot({ tone }: { tone: "sono" | "mamada" }) {
+  return (
+    <span
+      aria-hidden
+      className="size-2 shrink-0 rounded-full"
+      style={{ background: tone === "sono" ? "var(--color-sage)" : "var(--color-amber)" }}
+    />
+  );
+}
 import { epochFromLocal } from "@/lib/schedule";
 import { deleteActivity, updateActivity } from "@/lib/api";
 
@@ -21,9 +30,7 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
 
   if (activities.length === 0) {
     return (
-      <p className="py-6 text-[15px] text-ink-soft">
-        Nada registrado nesse dia ainda. Use os botões acima.
-      </p>
+      <p className="py-6 text-[15px] text-ink-soft">Nada registrado nesse dia.</p>
     );
   }
 
@@ -52,10 +59,13 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
               ) : (
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <div className="font-display text-[18px] tracking-tight text-ink">
-                      😴 Soneca
+                    <div className="flex items-center gap-2.5">
+                      <Dot tone="sono" />
+                      <span className="font-display text-[18px] tracking-tight text-ink">
+                        Soneca
+                      </span>
                     </div>
-                    <div className="mt-1 text-[13px] text-ink-soft tnum">
+                    <div className="mt-1 pl-[18px] text-[13px] text-ink-soft tnum">
                       {a.endedAt == null
                         ? `desde ${clock(a.startedAt, tz)} · em andamento`
                         : `${clock(a.startedAt, tz)}–${clock(a.endedAt, tz)} · ${formatDuration(a.endedAt - a.startedAt)}`}
@@ -82,11 +92,16 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
             ) : (
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <div className="font-display text-[18px] tracking-tight text-ink">
-                    {FEED_ICON[feedMethod(a)]} {FEED_NOUN[feedMethod(a)]}
-                    {feedDetail(a) ? <span className="text-ink-soft"> · {feedDetail(a)}</span> : null}
+                  <div className="flex items-center gap-2.5">
+                    <Dot tone="mamada" />
+                    <span className="font-display text-[18px] tracking-tight text-ink">
+                      {FEED_NOUN[feedMethod(a)]}
+                      {feedDetail(a) ? (
+                        <span className="text-ink-soft"> · {feedDetail(a)}</span>
+                      ) : null}
+                    </span>
                   </div>
-                  <div className="mt-1 text-[13px] text-ink-soft tnum">{clock(a.at, tz)}</div>
+                  <div className="mt-1 pl-[18px] text-[13px] text-ink-soft tnum">{clock(a.at, tz)}</div>
                 </div>
                 <div className="flex shrink-0 items-center gap-4 text-[13px]">
                   {a.side ? (
@@ -151,7 +166,10 @@ function NapEditor({
 
   return (
     <div className="grid gap-3">
-      <div className="font-display text-[18px] tracking-tight text-ink">😴 Soneca</div>
+      <div className="flex items-center gap-2.5">
+        <Dot tone="sono" />
+        <span className="font-display text-[18px] tracking-tight text-ink">Soneca</span>
+      </div>
       <div className="flex flex-wrap items-end gap-4">
         <label className="text-[12px] uppercase tracking-[0.16em] text-ink-faint">
           início
