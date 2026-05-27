@@ -218,6 +218,21 @@ export function onChange(
   return () => window.removeEventListener(EVT, listener);
 }
 
+// Re-emite todos os escopos pra forçar as telas montadas a refazer o fetch.
+// Usado quando a aba volta ao foco: o sync é por evento intra-aba, então sem
+// isso dados mexidos noutro aparelho (ex.: lista da casa pelo parceiro) só
+// apareciam ao recarregar a página na mão. Throttle evita refetch duplicado
+// quando focus e visibilitychange disparam juntos.
+const ALL_SCOPES: Scope[] = ["reminders", "config", "log", "profiles", "activities"];
+let lastRefetchAll = 0;
+export function refetchAll() {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (now - lastRefetchAll < 1000) return;
+  lastRefetchAll = now;
+  for (const s of ALL_SCOPES) emit(s);
+}
+
 // ── Sharing ───────────────────────────────────────────────────────────────────
 
 export type SharingPartner = {
