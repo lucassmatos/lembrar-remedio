@@ -109,6 +109,23 @@ function checkRole(profile: Profile, role: AccessRole, minRole: MinRole): Access
   return { profile, role };
 }
 
+// ── requireHouseholdAccess ───────────────────────────────────────────────────
+
+/**
+ * Gate das listas da casa. O caller pode acessar a partição de `ownerSub` se for
+ * o próprio dono OU o parceiro dele (relação 1:1 simétrica via getPartner).
+ * Lança ForbiddenError (→ 403 via mapAccessError) caso contrário. Cuidador não entra.
+ */
+export async function requireHouseholdAccess(
+  callerSub: string,
+  ownerSub: string,
+): Promise<void> {
+  if (callerSub === ownerSub) return;
+  const partner = await getPartner(callerSub);
+  if (partner?.partnerSub === ownerSub) return;
+  throw new ForbiddenError(ownerSub);
+}
+
 // ── A7: acceptInvite ─────────────────────────────────────────────────────────
 
 export type InvitePayload = {

@@ -44,6 +44,31 @@ export type Profile = {
   version: number;
 };
 
+// ── Recados da Casa: listas compartilhadas entre parceiros ──────────────────
+export const LIST_KINDS = ["compras", "afazeres", "custom"] as const;
+export type ListKind = (typeof LIST_KINDS)[number];
+
+/** Uma lista da casa. Vive em user#<ownerSub>/list#<id>; visível ao owner e ao parceiro. */
+export type HouseList = {
+  id: string;
+  ownerSub: string;
+  title: string;
+  kind: ListKind;
+  createdAt: number;
+  archivedAt?: number;
+};
+
+/** Item de lista. Vive em user#<ownerSub>/listitem#<listId>#<id>. */
+export type ListItem = {
+  id: string;
+  listId: string;
+  text: string;
+  done: boolean;
+  addedBy: string;
+  doneBy?: string;
+  createdAt: number;
+};
+
 export const REMINDER_KINDS = ["medication", "vaccine", "appointment"] as const;
 export type ReminderKind = (typeof REMINDER_KINDS)[number];
 

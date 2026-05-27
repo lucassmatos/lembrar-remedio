@@ -1,11 +1,12 @@
 import Link from "next/link";
 
-export type NavKey = "timeline" | "lembretes" | "diario" | "ajustes";
+export type NavKey = "timeline" | "lembretes" | "diario" | "casa" | "ajustes";
 
 const PRIMARY: { key: NavKey; label: string; href: string }[] = [
   { key: "timeline", label: "Timeline", href: "/" },
   { key: "lembretes", label: "Lembretes", href: "/lembretes" },
   { key: "diario", label: "Diário", href: "/diario" },
+  { key: "casa", label: "Casa", href: "/casa" },
   { key: "ajustes", label: "Ajustes", href: "/settings" },
 ];
 

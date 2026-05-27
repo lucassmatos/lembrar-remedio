@@ -13,6 +13,8 @@ import type {
   Activity,
   Config,
   DayLog,
+  HouseList,
+  ListItem,
   NapActivity,
   PartnerRecord,
   Profile,
@@ -71,6 +73,8 @@ const SK = {
   shareLink: (ownerSub: string, profileId: string) =>
     `shared#${ownerSub}#${profileId}`,
   pushSub: (id: string) => `pushsub#${id}`,
+  list: (id: string) => `list#${id}`,
+  listItem: (listId: string, id: string) => `listitem#${listId}#${id}`,
 };
 
 export async function ensureUser(
@@ -191,6 +195,30 @@ export async function putProfile(ownerSub: string, profile: Profile): Promise<Pr
  * @param ownerSub  The ownerSub of the profile (NOT necessarily the caller).
  * @param profileId The profile id to delete.
  */
+/**
+ * Apaga todo item de uma partição (pk), opcionalmente filtrando por prefixo de
+ * sk. Pagina (Query cap de 1MB) pra não vazar itens além da primeira página.
+ */
+export async function deleteAllByPrefix(pk: string, skPrefix?: string): Promise<void> {
+  let lek: Record<string, unknown> | undefined;
+  do {
+    const res = await doc.send(
+      new QueryCommand({
+        TableName: TABLE,
+        KeyConditionExpression: skPrefix ? "pk = :pk AND begins_with(sk, :sk)" : "pk = :pk",
+        ExpressionAttributeValues: skPrefix ? { ":pk": pk, ":sk": skPrefix } : { ":pk": pk },
+        ExclusiveStartKey: lek,
+      }),
+    );
+    for (const item of res.Items ?? []) {
+      await doc.send(
+        new DeleteCommand({ TableName: TABLE, Key: { pk: item.pk, sk: item.sk } }),
+      );
+    }
+    lek = res.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (lek);
+}
+
 export async function deleteProfileCascade(ownerSub: string, profileId: string): Promise<void> {
   // 1. Fetch the profile to get sharedWith members.
   const profileRes = await doc.send(
@@ -203,27 +231,8 @@ export async function deleteProfileCascade(ownerSub: string, profileId: string):
     ? ((profileRes.Item.sharedWith as Array<{ sub: string }>) ?? [])
     : [];
 
-  // 2. Query and delete every item under profile#<id> (reminders, logs, notified, meta).
-  let lek: Record<string, unknown> | undefined;
-  do {
-    const res = await doc.send(
-      new QueryCommand({
-        TableName: TABLE,
-        KeyConditionExpression: "pk = :pk",
-        ExpressionAttributeValues: { ":pk": PK.profile(profileId) },
-        ExclusiveStartKey: lek,
-      }),
-    );
-    for (const item of res.Items ?? []) {
-      await doc.send(
-        new DeleteCommand({
-          TableName: TABLE,
-          Key: { pk: item.pk, sk: item.sk },
-        }),
-      );
-    }
-    lek = res.LastEvaluatedKey as Record<string, unknown> | undefined;
-  } while (lek);
+  // 2. Delete every item under profile#<id> (reminders, logs, notified, meta).
+  await deleteAllByPrefix(PK.profile(profileId));
 
   // 2b. Delete activities (diário) for this profile from the owner's partition.
   const activities = await listAllActivities(ownerSub);
@@ -1086,6 +1095,104 @@ export async function setReminderStatusForProfile(
   const updated: Reminder = { ...existing, status };
   await putReminderForProfile(updated);
   return updated;
+}
+
+// ── Recados da Casa: listas ──────────────────────────────────────────────────
+// Listas vivem na partição do criador (user#<ownerSub>). Descoberta cross-user é
+// query ao vivo da partição do parceiro (getPartner) — sem link records, sem GSI.
+
+export async function listHouseLists(ownerSub: string): Promise<HouseList[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.user(ownerSub), ":sk": "list#" },
+    }),
+  );
+  return (res.Items ?? []).map(stripKeys<HouseList>);
+}
+
+/** Listas da casa: as do próprio + as do parceiro (se houver). Mais antigas primeiro. */
+export async function listsForHousehold(sub: string): Promise<HouseList[]> {
+  const own = await listHouseLists(sub);
+  const partner = await getPartner(sub);
+  const theirs = partner ? await listHouseLists(partner.partnerSub) : [];
+  return [...own, ...theirs].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function getHouseList(ownerSub: string, id: string): Promise<HouseList | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(ownerSub), sk: SK.list(id) } }),
+  );
+  return res.Item ? stripKeys<HouseList>(res.Item) : null;
+}
+
+export async function putHouseList(ownerSub: string, list: HouseList): Promise<HouseList> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.user(ownerSub), sk: SK.list(list.id), ...list },
+    }),
+  );
+  return list;
+}
+
+/** Apaga a lista e todos os seus itens (cascade paginado via deleteAllByPrefix). */
+export async function deleteHouseListCascade(ownerSub: string, listId: string): Promise<void> {
+  await deleteAllByPrefix(PK.user(ownerSub), `listitem#${listId}#`);
+  await doc.send(
+    new DeleteCommand({ TableName: TABLE, Key: { pk: PK.user(ownerSub), sk: SK.list(listId) } }),
+  );
+}
+
+export async function listItems(ownerSub: string, listId: string): Promise<ListItem[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.user(ownerSub), ":sk": `listitem#${listId}#` },
+    }),
+  );
+  return (res.Items ?? [])
+    .map(stripKeys<ListItem>)
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function getListItem(
+  ownerSub: string,
+  listId: string,
+  id: string,
+): Promise<ListItem | null> {
+  const res = await doc.send(
+    new GetCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(ownerSub), sk: SK.listItem(listId, id) },
+    }),
+  );
+  return res.Item ? stripKeys<ListItem>(res.Item) : null;
+}
+
+export async function putListItem(ownerSub: string, item: ListItem): Promise<ListItem> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.user(ownerSub), sk: SK.listItem(item.listId, item.id), ...item },
+    }),
+  );
+  return item;
+}
+
+export async function deleteListItem(
+  ownerSub: string,
+  listId: string,
+  id: string,
+): Promise<void> {
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(ownerSub), sk: SK.listItem(listId, id) },
+    }),
+  );
 }
 
 export const _internal = { PK, SK, doc, TABLE };

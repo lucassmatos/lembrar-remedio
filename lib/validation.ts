@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
-import { BOTTLE_CONTENTS, FEED_METHODS, FEED_SIDES, PROFILE_COLORS, REMINDER_KINDS } from "./types";
+import { BOTTLE_CONTENTS, FEED_METHODS, FEED_SIDES, LIST_KINDS, PROFILE_COLORS, REMINDER_KINDS } from "./types";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -40,7 +40,7 @@ export async function parseBody<T>(
 const HHMM = /^\d{2}:\d{2}$/;
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SLOT_KEY = /^[A-Za-z0-9_-]{1,32}@\d{2}:\d{2}$/;
-const ID = /^[A-Za-z0-9_-]{1,16}$/;
+export const ID = /^[A-Za-z0-9_-]{1,16}$/;
 
 let TZ_SET: Set<string> | null = null;
 function isValidTz(tz: string): boolean {
@@ -210,6 +210,33 @@ export const ActivityPatchSchema = z
   })
   .strict();
 export type ActivityPatch = z.infer<typeof ActivityPatchSchema>;
+
+// ── Recados da Casa ──────────────────────────────────────────────────────────
+// ownerSub é um sub do NextAuth (Google sub numérico, ou "dev-user" em dev).
+export const SUB = /^[A-Za-z0-9_-]{1,255}$/;
+
+export const ListPostSchema = z
+  .object({
+    title: z.string().min(1).max(80),
+    kind: z.enum(LIST_KINDS).optional(),
+  })
+  .strict();
+export type ListPost = z.infer<typeof ListPostSchema>;
+
+export const ItemPostSchema = z
+  .object({
+    text: z.string().min(1).max(200),
+  })
+  .strict();
+export type ItemPost = z.infer<typeof ItemPostSchema>;
+
+export const ItemPatchSchema = z
+  .object({
+    itemId: z.string().regex(ID),
+    done: z.boolean(),
+  })
+  .strict();
+export type ItemPatch = z.infer<typeof ItemPatchSchema>;
 
 export const PushSubscribeSchema = z
   .object({

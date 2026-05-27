@@ -1,9 +1,9 @@
 "use client";
 
-import type { Activity, BottleContent, Config, DayLog, FeedSide, NapActivity, Profile, Reminder } from "./types";
+import type { Activity, BottleContent, Config, DayLog, FeedSide, HouseList, ListItem, ListKind, NapActivity, Profile, Reminder } from "./types";
 
 const EVT = "lr:change";
-type Scope = "reminders" | "config" | "log" | "profiles" | "activities";
+type Scope = "reminders" | "config" | "log" | "profiles" | "activities" | "lists";
 
 function emit(scope: Scope) {
   if (typeof window !== "undefined") {
@@ -223,7 +223,7 @@ export function onChange(
 // isso dados mexidos noutro aparelho (ex.: lista da casa pelo parceiro) só
 // apareciam ao recarregar a página na mão. Throttle evita refetch duplicado
 // quando focus e visibilitychange disparam juntos.
-const ALL_SCOPES: Scope[] = ["reminders", "config", "log", "profiles", "activities"];
+const ALL_SCOPES: Scope[] = ["reminders", "config", "log", "profiles", "activities", "lists"];
 let lastRefetchAll = 0;
 export function refetchAll() {
   if (typeof window === "undefined") return;
@@ -231,6 +231,64 @@ export function refetchAll() {
   if (now - lastRefetchAll < 1000) return;
   lastRefetchAll = now;
   for (const s of ALL_SCOPES) emit(s);
+}
+
+// ── Recados da Casa ───────────────────────────────────────────────────────────
+
+export async function getHouseLists(): Promise<HouseList[]> {
+  const data = await jsonFetch<{ lists: HouseList[] }>("/api/lists");
+  return data.lists;
+}
+
+export type ListDetail = { list: HouseList; items: ListItem[] };
+
+export async function getListDetail(ownerSub: string, id: string): Promise<ListDetail> {
+  return jsonFetch<ListDetail>(`/api/lists/${id}?ownerSub=${encodeURIComponent(ownerSub)}`);
+}
+
+export async function createList(title: string, kind: ListKind = "custom"): Promise<HouseList> {
+  const data = await jsonFetch<{ list: HouseList }>("/api/lists", {
+    method: "POST",
+    body: JSON.stringify({ title, kind }),
+  });
+  emit("lists");
+  return data.list;
+}
+
+export async function deleteList(ownerSub: string, id: string): Promise<void> {
+  await jsonFetch(`/api/lists/${id}?ownerSub=${encodeURIComponent(ownerSub)}`, { method: "DELETE" });
+  emit("lists");
+}
+
+export async function addItem(ownerSub: string, listId: string, text: string): Promise<ListItem> {
+  const data = await jsonFetch<{ item: ListItem }>(
+    `/api/lists/${listId}/items?ownerSub=${encodeURIComponent(ownerSub)}`,
+    { method: "POST", body: JSON.stringify({ text }) },
+  );
+  emit("lists");
+  return data.item;
+}
+
+export async function setItemDone(
+  ownerSub: string,
+  listId: string,
+  itemId: string,
+  done: boolean,
+): Promise<ListItem> {
+  const data = await jsonFetch<{ item: ListItem }>(
+    `/api/lists/${listId}/items?ownerSub=${encodeURIComponent(ownerSub)}`,
+    { method: "PATCH", body: JSON.stringify({ itemId, done }) },
+  );
+  emit("lists");
+  return data.item;
+}
+
+export async function deleteItem(ownerSub: string, listId: string, itemId: string): Promise<void> {
+  await jsonFetch(
+    `/api/lists/${listId}/items?ownerSub=${encodeURIComponent(ownerSub)}&itemId=${encodeURIComponent(itemId)}`,
+    { method: "DELETE" },
+  );
+  emit("lists");
 }
 
 // ── Sharing ───────────────────────────────────────────────────────────────────
