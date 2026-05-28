@@ -13,6 +13,7 @@ export interface ComputeStackProps extends cdk.StackProps {
 }
 
 const NOTIFY_DOSE_FN_NAME = "lembrar-remedio-notify-dose";
+const NOTIFY_BIRTHDAYS_FN_NAME = "lembrar-remedio-notify-birthdays";
 const SYNC_FN_NAME = "lembrar-remedio-schedule-sync";
 const SCHEDULER_ROLE_NAME = "lembrar-remedio-scheduler-invoke";
 const TELEGRAM_TOKEN_SECRET_NAME = "lembrar-remedio/telegram-bot-token";
@@ -20,6 +21,7 @@ const VAPID_PRIVATE_KEY_SECRET_NAME = "lembrar-remedio/vapid-private-key";
 
 export class ComputeStack extends cdk.Stack {
   public readonly notifyDoseFn: nodejs.NodejsFunction;
+  public readonly notifyBirthdaysFn: nodejs.NodejsFunction;
   public readonly syncFn: nodejs.NodejsFunction;
   public readonly schedulerRole: iam.Role;
 
@@ -39,7 +41,10 @@ export class ComputeStack extends cdk.Stack {
     // Constructed statically to avoid CDK self-reference cycles.
     // NotifyDoseFn refers to SchedulerRole (PassRole + env), SchedulerRole refers
     // to NotifyDoseFn (grantInvoke). Using known names breaks the dep cycle.
+    // Mesma dança pro NotifyBirthdaysFn — SchedulerRole precisa invocá-lo, e a
+    // syncFn precisa do ARN no env pra criar o schedule.
     const notifyDoseFnArn = `arn:aws:lambda:${this.region}:${this.account}:function:${NOTIFY_DOSE_FN_NAME}`;
+    const notifyBirthdaysFnArn = `arn:aws:lambda:${this.region}:${this.account}:function:${NOTIFY_BIRTHDAYS_FN_NAME}`;
     const schedulerRoleArn = `arn:aws:iam::${this.account}:role/${SCHEDULER_ROLE_NAME}`;
 
     // Telegram bot token lives in Secrets Manager (created out-of-band).
@@ -101,7 +106,32 @@ export class ComputeStack extends cdk.Stack {
       }),
     );
 
-    // Role usado pelo EventBridge Scheduler pra invocar o notify-dose.
+    // notify-birthdays Lambda — disparado pelo schedule diário de cada usuário,
+    // monta o digest (hoje + opcional semana/mês) e manda Telegram + Web Push
+    // pro próprio usuário. Sem fan-out: cada parceiro tem seu próprio schedule.
+    this.notifyBirthdaysFn = new nodejs.NodejsFunction(this, "NotifyBirthdaysFn", {
+      functionName: NOTIFY_BIRTHDAYS_FN_NAME,
+      entry: path.join(projectRoot, "infra/lambda/notify-birthdays/handler.ts"),
+      depsLockFilePath: path.join(projectRoot, "infra/package-lock.json"),
+      projectRoot,
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_20_X,
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        DDB_TABLE_NAME: props.table.tableName,
+        TELEGRAM_BOT_TOKEN_SECRET_ARN: telegramTokenSecret.secretArn,
+        VAPID_PRIVATE_KEY_SECRET_ARN: vapidPrivateKeySecret.secretArn,
+      },
+      bundling: commonBundling,
+      logRetention: 14 as never,
+    });
+    props.table.grantReadWriteData(this.notifyBirthdaysFn);
+    telegramTokenSecret.grantRead(this.notifyBirthdaysFn);
+    vapidPrivateKeySecret.grantRead(this.notifyBirthdaysFn);
+
+    // Role usado pelo EventBridge Scheduler pra invocar as duas Lambdas
+    // (notify-dose, notify-birthdays).
     this.schedulerRole = new iam.Role(this, "SchedulerRole", {
       assumedBy: new iam.ServicePrincipal("scheduler.amazonaws.com"),
       roleName: SCHEDULER_ROLE_NAME,
@@ -109,7 +139,12 @@ export class ComputeStack extends cdk.Stack {
     this.schedulerRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ["lambda:InvokeFunction"],
-        resources: [notifyDoseFnArn, `${notifyDoseFnArn}:*`],
+        resources: [
+          notifyDoseFnArn,
+          `${notifyDoseFnArn}:*`,
+          notifyBirthdaysFnArn,
+          `${notifyBirthdaysFnArn}:*`,
+        ],
       }),
     );
 
@@ -126,6 +161,7 @@ export class ComputeStack extends cdk.Stack {
       environment: {
         DDB_TABLE_NAME: props.table.tableName,
         NOTIFY_DOSE_LAMBDA_ARN: notifyDoseFnArn,
+        NOTIFY_BIRTHDAYS_LAMBDA_ARN: notifyBirthdaysFnArn,
         SCHEDULER_ROLE_ARN: schedulerRoleArn,
       },
       bundling: commonBundling,
@@ -163,6 +199,7 @@ export class ComputeStack extends cdk.Stack {
     );
 
     new cdk.CfnOutput(this, "NotifyDoseFnArn", { value: this.notifyDoseFn.functionArn });
+    new cdk.CfnOutput(this, "NotifyBirthdaysFnArn", { value: this.notifyBirthdaysFn.functionArn });
     new cdk.CfnOutput(this, "SyncFnArn", { value: this.syncFn.functionArn });
     new cdk.CfnOutput(this, "SchedulerRoleArn", { value: this.schedulerRole.roleArn });
   }
