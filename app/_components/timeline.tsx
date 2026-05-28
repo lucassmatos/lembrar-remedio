@@ -10,6 +10,7 @@ import {
   todaySlots,
 } from "@/lib/schedule";
 import {
+  getBirthdays,
   getLog,
   getRoutines,
   markRoutineDone,
@@ -17,6 +18,7 @@ import {
   setLogEntry,
   unmarkRoutineDone,
   updateReminder,
+  type BirthdayWithStatus,
   type RoutineWithStatus,
 } from "@/lib/api";
 import type {
@@ -32,7 +34,7 @@ import type {
 import { clock, formatDuration } from "@/lib/activity";
 import { freqLabel, isDueOn, timelineTime } from "@/lib/routines";
 import { KIND_META, KIND_ORDER, isReminderKind } from "@/lib/reminder-kinds";
-import { Calendar, Moon, Pill, Syringe, type LucideIcon } from "lucide-react";
+import { Cake, Calendar, Moon, Pill, Syringe, type LucideIcon } from "lucide-react";
 import type { ReminderKind as RK } from "@/lib/types";
 import { profileFill } from "@/lib/profile-ui";
 import { ProfileBadge } from "./profile-badge";
@@ -121,6 +123,39 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
       off();
     };
   }, []);
+
+  // Aniversários da casa: hoje (D-0) e próximos (até 30d). Não tem toggle nem
+  // "atrasado" — parabéns retroativo não existe; depois do dia some até o ano que vem.
+  const [birthdays, setBirthdays] = useState<BirthdayWithStatus[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchBirthdays() {
+      try {
+        const bs = await getBirthdays();
+        if (!cancelled) setBirthdays(bs);
+      } catch {
+        // ignore
+      }
+    }
+    fetchBirthdays();
+    const off = onChange("birthdays", fetchBirthdays);
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
+  const todayBirthdays = useMemo(() => {
+    const today = nowInTz(tz).date;
+    if (date !== today) return [];
+    return birthdays.filter((b) => b.daysAway === 0);
+  }, [birthdays, date, tz]);
+
+  const upcomingBirthdays = useMemo(() => {
+    const today = nowInTz(tz).date;
+    if (date !== today) return [];
+    return birthdays.filter((b) => b.daysAway > 0 && b.daysAway <= 30);
+  }, [birthdays, date, tz]);
 
   const routinesDueToday = useMemo(() => {
     const today = nowInTz(tz).date;
@@ -330,6 +365,19 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
         </section>
       ) : null}
 
+      {todayBirthdays.length > 0 ? (
+        <section className="mb-12">
+          <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
+            Aniversários hoje
+          </h2>
+          <ol className="divide-y divide-edge">
+            {todayBirthdays.map((b) => (
+              <BirthdayRow key={b.id} birthday={b} />
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
       {routinesDueToday.length > 0 ? (
         <section className="mb-12">
           <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
@@ -378,30 +426,45 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
         )}
       </section>
 
-      {upcomingOneShots.length > 0 || upcomingRoutines.length > 0 ? (
+      {upcomingOneShots.length > 0 || upcomingRoutines.length > 0 || upcomingBirthdays.length > 0 ? (
         <section>
           <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
             Próximos
           </h2>
           <ol className="divide-y divide-edge">
-            {upcomingRoutines.map((r) => (
-              <RoutineUpcomingRow
-                key={r.id}
-                routine={r}
-                occurrence={r.next!}
-                onToggle={() => toggleRoutineForPeriod(r, r.next!.period)}
-              />
-            ))}
-            {upcomingOneShots.map((item) => (
-              <OneShotRow
-                key={item.reminder.id}
-                item={item}
-                profile={showProfile ? profileById.get(item.reminder.profileId) : undefined}
-                onAgendei={() => setStatus(item.reminder.id, "scheduled")}
-                onDesmarcar={() => setStatus(item.reminder.id, "unscheduled")}
-                onFiz={() => setStatus(item.reminder.id, "done")}
-              />
-            ))}
+            {[
+              ...upcomingRoutines.map((r) => ({
+                key: `r-${r.id}`,
+                daysAway: r.next!.daysAway,
+                node: (
+                  <RoutineUpcomingRow
+                    routine={r}
+                    occurrence={r.next!}
+                    onToggle={() => toggleRoutineForPeriod(r, r.next!.period)}
+                  />
+                ),
+              })),
+              ...upcomingBirthdays.map((b) => ({
+                key: `b-${b.id}`,
+                daysAway: b.daysAway,
+                node: <BirthdayRow birthday={b} />,
+              })),
+              ...upcomingOneShots.map((item) => ({
+                key: `o-${item.reminder.id}`,
+                daysAway: item.eventDays,
+                node: (
+                  <OneShotRow
+                    item={item}
+                    profile={showProfile ? profileById.get(item.reminder.profileId) : undefined}
+                    onAgendei={() => setStatus(item.reminder.id, "scheduled")}
+                    onDesmarcar={() => setStatus(item.reminder.id, "unscheduled")}
+                    onFiz={() => setStatus(item.reminder.id, "done")}
+                  />
+                ),
+              })),
+            ]
+              .sort((a, b) => a.daysAway - b.daysAway)
+              .map((it) => <div key={it.key}>{it.node}</div>)}
           </ol>
         </section>
       ) : null}
@@ -719,6 +782,32 @@ function CheckIcon() {
 function fmtTakenAt(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function BirthdayRow({ birthday }: { birthday: BirthdayWithStatus }) {
+  const isToday = birthday.daysAway === 0;
+  return (
+    <li className="grid grid-cols-[64px_1fr_auto] items-center gap-4 py-5">
+      <DateChip eventDate={birthday.nextDate} eventDays={birthday.daysAway} />
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 font-display text-[19px] leading-tight tracking-tight text-ink">
+          <Cake
+            size={16}
+            strokeWidth={1.75}
+            aria-hidden
+            style={{ color: "var(--color-violet)" }}
+          />
+          <span className="truncate">{birthday.name}</span>
+        </div>
+        <div className="mt-0.5 text-[13px] text-ink-faint">
+          {birthday.age != null
+            ? `${isToday ? "faz" : "vai fazer"} ${birthday.age} ano${birthday.age === 1 ? "" : "s"}`
+            : "aniversário"}
+        </div>
+      </div>
+      <span />
+    </li>
+  );
 }
 
 function RoutineUpcomingRow({

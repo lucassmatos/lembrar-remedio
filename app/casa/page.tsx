@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { Shell } from "../_components/shell";
 import {
   addItem,
+  createBirthday,
   createList,
   createRoutine,
+  deleteBirthday,
   deleteItem,
   deleteList,
   deleteRoutine,
+  getBirthdays,
   getHouseLists,
   getListDetail,
   getRoutines,
@@ -16,15 +19,19 @@ import {
   onChange,
   setItemDone,
   unmarkRoutineDone,
+  type BirthdayInput,
+  type BirthdayWithStatus,
   type RoutineInput,
   type RoutineWithStatus,
 } from "@/lib/api";
 import { freqLabel } from "@/lib/routines";
 import { ROUTINE_FREQS, type HouseList, type ListItem, type RoutineFreq } from "@/lib/types";
+import { Cake } from "lucide-react";
 
 export default function CasaPage() {
   const [lists, setLists] = useState<HouseList[]>([]);
   const [routines, setRoutines] = useState<RoutineWithStatus[]>([]);
+  const [birthdays, setBirthdays] = useState<BirthdayWithStatus[]>([]);
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState<HouseList | null>(null);
 
@@ -68,6 +75,24 @@ export default function CasaPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const bs = await getBirthdays();
+        if (!cancelled) setBirthdays(bs);
+      } catch {
+        // ignore
+      }
+    }
+    refresh();
+    const off = onChange("birthdays", refresh);
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
   // Sem h1 dedicado: a página tem duas seções (Rotinas + Listas) cada uma com
   // seu serif h2 — um h1 "Casa" no topo vira ruído e o velho "Recados" não
   // descreve mais o que mora aqui. Kicker só, single source of truth.
@@ -84,6 +109,7 @@ export default function CasaPage() {
       ) : (
         <>
           <RoutinesView routines={routines} setRoutines={setRoutines} />
+          <BirthdaysView birthdays={birthdays} setBirthdays={setBirthdays} />
           <ListsView lists={lists} onOpen={setOpen} />
         </>
       )}
@@ -577,6 +603,221 @@ function Field({
       {children}
       {hint ? <p className="text-[12px] text-ink-faint">{hint}</p> : null}
     </div>
+  );
+}
+
+const MONTH_NAMES = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+
+function dateHint(b: BirthdayWithStatus): string {
+  const dm = `${String(b.day).padStart(2, "0")}/${String(b.month).padStart(2, "0")}`;
+  const age = b.age != null ? ` · faz ${b.age}` : "";
+  if (b.daysAway === 0) return `hoje! · ${dm}${age}`;
+  if (b.daysAway === 1) return `amanhã · ${dm}${age}`;
+  if (b.daysAway <= 30) return `em ${b.daysAway}d · ${dm}${age}`;
+  return `${dm}${age}`;
+}
+
+function BirthdaysView({
+  birthdays,
+  setBirthdays,
+}: {
+  birthdays: BirthdayWithStatus[];
+  setBirthdays: React.Dispatch<React.SetStateAction<BirthdayWithStatus[]>>;
+}) {
+  const [adding, setAdding] = useState(false);
+
+  async function remove(b: BirthdayWithStatus) {
+    if (!confirm(`Apagar o aniversário de "${b.name}"?`)) return;
+    setBirthdays((curr) => curr.filter((x) => x.id !== b.id));
+    try {
+      await deleteBirthday(b.ownerSub, b.id);
+    } catch {
+      setBirthdays((curr) => [...curr, b].sort((a, b) => a.daysAway - b.daysAway));
+    }
+  }
+
+  return (
+    <section className="mb-10">
+      <div className="mb-3 flex items-center justify-between gap-4 border-b border-edge pb-3">
+        <h2 className="font-display text-[24px] leading-none tracking-tight text-ink">
+          Aniversários
+        </h2>
+        {!adding ? (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:text-ink"
+            style={{ border: "1px dashed var(--color-edge-2)" }}
+          >
+            + novo
+          </button>
+        ) : null}
+      </div>
+
+      {adding ? <NewBirthdayForm onDone={() => setAdding(false)} /> : null}
+
+      {birthdays.length === 0 && !adding ? (
+        <p className="py-2 text-[15px] text-ink-soft">
+          Nenhum aniversário ainda. Coloca a família e a gente lembra.
+        </p>
+      ) : (
+        <ul className="divide-y divide-edge">
+          {birthdays.map((b) => (
+            <li key={b.id} className="flex items-center justify-between gap-3 py-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <Cake
+                  size={18}
+                  strokeWidth={1.75}
+                  aria-hidden
+                  style={{ color: "var(--color-violet)" }}
+                />
+                <span className="min-w-0">
+                  <span className="block truncate font-display text-[18px] tracking-tight text-ink">
+                    {b.name}
+                  </span>
+                  <span
+                    className={
+                      "block text-[13px] " +
+                      (b.daysAway === 0 ? "font-medium text-amber" : "text-ink-soft")
+                    }
+                  >
+                    {dateHint(b)}
+                  </span>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(b)}
+                className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-clay"
+              >
+                apagar
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function NewBirthdayForm({ onDone }: { onDone: () => void }) {
+  const [name, setName] = useState("");
+  const [day, setDay] = useState<number>(1);
+  const [month, setMonth] = useState<number>(1);
+  const [year, setYear] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy || !name.trim()) return;
+    setBusy(true);
+    const input: BirthdayInput = {
+      name: name.trim(),
+      day,
+      month,
+      ...(year ? { year: Number(year) } : {}),
+    };
+    try {
+      await createBirthday(input);
+      onDone();
+    } catch {
+      setBusy(false);
+    }
+  }
+
+  const inputCls =
+    "w-full rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink disabled:opacity-60";
+
+  return (
+    <form
+      onSubmit={submit}
+      className="mb-4 grid gap-5 rounded-2xl p-5"
+      style={{ border: "1px solid var(--color-edge)", background: "var(--color-paper-2)" }}
+    >
+      <Field label="quem">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="ex.: Pri, Mãe, sobrinha Luísa"
+          maxLength={80}
+          disabled={busy}
+          className={inputCls}
+          style={{ border: "1px solid var(--color-edge-2)" }}
+        />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="dia">
+          <input
+            type="number"
+            min={1}
+            max={31}
+            value={day}
+            onChange={(e) => setDay(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
+            className={"tnum " + inputCls}
+            style={{ border: "1px solid var(--color-edge-2)" }}
+          />
+        </Field>
+        <Field label="mês">
+          <select
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+            className={inputCls}
+            style={{ border: "1px solid var(--color-edge-2)" }}
+          >
+            {MONTH_NAMES.map((n, i) => (
+              <option key={i} value={i + 1}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      <Field label="ano (opcional)" hint="vazio = não calcula idade">
+        <input
+          type="number"
+          min={1900}
+          max={new Date().getUTCFullYear()}
+          value={year}
+          onChange={(e) => setYear(e.target.value)}
+          placeholder="ex.: 1989"
+          className={"tnum " + inputCls}
+          style={{ border: "1px solid var(--color-edge-2)" }}
+        />
+      </Field>
+
+      <div className="flex items-center gap-3 pt-1 text-[14px]">
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-full bg-ink px-5 py-2 text-[14px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
+        >
+          criar
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          className="text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+        >
+          cancelar
+        </button>
+      </div>
+    </form>
   );
 }
 

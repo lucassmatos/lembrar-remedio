@@ -1,9 +1,17 @@
 "use client";
 
-import type { Activity, BottleContent, Config, DayLog, FeedSide, HouseList, HouseRoutine, ListItem, ListKind, NapActivity, Profile, Reminder, RoutineFreq } from "./types";
+import type { Activity, Birthday, BottleContent, Config, DayLog, FeedSide, HouseList, HouseRoutine, ListItem, ListKind, NapActivity, Profile, Reminder, RoutineFreq } from "./types";
 
 const EVT = "lr:change";
-type Scope = "reminders" | "config" | "log" | "profiles" | "activities" | "lists" | "routines";
+type Scope =
+  | "reminders"
+  | "config"
+  | "log"
+  | "profiles"
+  | "activities"
+  | "lists"
+  | "routines"
+  | "birthdays";
 
 function emit(scope: Scope) {
   if (typeof window !== "undefined") {
@@ -223,7 +231,16 @@ export function onChange(
 // isso dados mexidos noutro aparelho (ex.: lista da casa pelo parceiro) só
 // apareciam ao recarregar a página na mão. Throttle evita refetch duplicado
 // quando focus e visibilitychange disparam juntos.
-const ALL_SCOPES: Scope[] = ["reminders", "config", "log", "profiles", "activities", "lists", "routines"];
+const ALL_SCOPES: Scope[] = [
+  "reminders",
+  "config",
+  "log",
+  "profiles",
+  "activities",
+  "lists",
+  "routines",
+  "birthdays",
+];
 let lastRefetchAll = 0;
 export function refetchAll() {
   if (typeof window === "undefined") return;
@@ -363,6 +380,45 @@ export async function unmarkRoutineDone(
     { method: "DELETE" },
   );
   emit("routines");
+}
+
+// ── Aniversários da Casa ──────────────────────────────────────────────────────
+
+export type BirthdayWithStatus = Birthday & {
+  /** Próxima ocorrência em YYYY-MM-DD no tz do usuário. */
+  nextDate: string;
+  /** Dias até a próxima ocorrência (0 = hoje). */
+  daysAway: number;
+  /** Idade que fará na próxima ocorrência, se year foi dado. */
+  age?: number;
+};
+
+export type BirthdayInput = {
+  name: string;
+  month: number;
+  day: number;
+  year?: number;
+};
+
+export async function getBirthdays(): Promise<BirthdayWithStatus[]> {
+  const data = await jsonFetch<{ birthdays: BirthdayWithStatus[] }>("/api/birthdays");
+  return data.birthdays;
+}
+
+export async function createBirthday(input: BirthdayInput): Promise<Birthday> {
+  const data = await jsonFetch<{ birthday: Birthday }>("/api/birthdays", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  emit("birthdays");
+  return data.birthday;
+}
+
+export async function deleteBirthday(ownerSub: string, id: string): Promise<void> {
+  await jsonFetch(`/api/birthdays/${id}?ownerSub=${encodeURIComponent(ownerSub)}`, {
+    method: "DELETE",
+  });
+  emit("birthdays");
 }
 
 // ── Sharing ───────────────────────────────────────────────────────────────────

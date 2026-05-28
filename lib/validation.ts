@@ -266,6 +266,26 @@ export const RoutineDonePostSchema = z
   .strict();
 export type RoutineDonePost = z.infer<typeof RoutineDonePostSchema>;
 
+// ── Aniversários da casa ─────────────────────────────────────────────────────
+const CURRENT_YEAR = new Date().getUTCFullYear();
+export const BirthdayPostSchema = z
+  .object({
+    name: z.string().min(1).max(80),
+    month: z.number().int().min(1).max(12),
+    day: z.number().int().min(1).max(31),
+    year: z.number().int().min(1900).max(CURRENT_YEAR + 1).optional(),
+  })
+  .strict()
+  .refine(
+    (d) => {
+      // Valida data realista (Feb 30 → false). Usa ano-bissexto pra permitir 29/2.
+      const lastDay = new Date(Date.UTC(2000, d.month, 0)).getUTCDate();
+      return d.day <= lastDay;
+    },
+    { message: "data inválida", path: ["day"] },
+  );
+export type BirthdayPost = z.infer<typeof BirthdayPostSchema>;
+
 export const PushSubscribeSchema = z
   .object({
     endpoint: z.string().url().max(1000),

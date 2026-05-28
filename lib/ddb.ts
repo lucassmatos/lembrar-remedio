@@ -13,6 +13,7 @@ import type {
   Activity,
   Config,
   DayLog,
+  Birthday,
   HouseList,
   HouseRoutine,
   ListItem,
@@ -79,6 +80,7 @@ const SK = {
   listItem: (listId: string, id: string) => `listitem#${listId}#${id}`,
   routine: (id: string) => `routine#${id}`,
   routineDone: (routineId: string, period: string) => `routinedone#${routineId}#${period}`,
+  birthday: (id: string) => `birthday#${id}`,
 };
 
 export async function ensureUser(
@@ -1298,6 +1300,53 @@ export async function deleteRoutineDone(
     new DeleteCommand({
       TableName: TABLE,
       Key: { pk: PK.user(ownerSub), sk: SK.routineDone(routineId, period) },
+    }),
+  );
+}
+
+// ── Aniversários da Casa ─────────────────────────────────────────────────────
+// Mesmo padrão das rotinas/listas: criador + parceiro via getPartner.
+
+export async function listBirthdays(ownerSub: string): Promise<Birthday[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.user(ownerSub), ":sk": "birthday#" },
+    }),
+  );
+  return (res.Items ?? []).map(stripKeys<Birthday>);
+}
+
+export async function birthdaysForHousehold(sub: string): Promise<Birthday[]> {
+  const own = await listBirthdays(sub);
+  const partner = await getPartner(sub);
+  const theirs = partner ? await listBirthdays(partner.partnerSub) : [];
+  return [...own, ...theirs];
+}
+
+export async function getBirthday(ownerSub: string, id: string): Promise<Birthday | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(ownerSub), sk: SK.birthday(id) } }),
+  );
+  return res.Item ? stripKeys<Birthday>(res.Item) : null;
+}
+
+export async function putBirthday(ownerSub: string, b: Birthday): Promise<Birthday> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.user(ownerSub), sk: SK.birthday(b.id), ...b },
+    }),
+  );
+  return b;
+}
+
+export async function deleteBirthday(ownerSub: string, id: string): Promise<void> {
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(ownerSub), sk: SK.birthday(id) },
     }),
   );
 }
