@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
-import { BOTTLE_CONTENTS, FEED_METHODS, FEED_SIDES, LIST_KINDS, PROFILE_COLORS, REMINDER_KINDS } from "./types";
+import { BOTTLE_CONTENTS, FEED_METHODS, FEED_SIDES, LIST_KINDS, PROFILE_COLORS, REMINDER_KINDS, ROUTINE_FREQS } from "./types";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -237,6 +237,34 @@ export const ItemPatchSchema = z
   })
   .strict();
 export type ItemPatch = z.infer<typeof ItemPatchSchema>;
+
+// ── Rotinas (calendário da casa) ─────────────────────────────────────────────
+// anchor depende de freq: monthly 1-31, weekly 0-6 (dom=0), daily ausente.
+// Validação cruzada via refine.
+export const RoutinePostSchema = z
+  .object({
+    title: z.string().min(1).max(80),
+    freq: z.enum(ROUTINE_FREQS),
+    anchor: z.number().int().min(0).max(31).optional(),
+    time: z.string().regex(HHMM, "HH:MM").optional(),
+  })
+  .strict()
+  .refine(
+    (d) => {
+      if (d.freq === "daily") return d.anchor == null;
+      if (d.freq === "weekly") return d.anchor != null && d.anchor >= 0 && d.anchor <= 6;
+      if (d.freq === "monthly") return d.anchor != null && d.anchor >= 1 && d.anchor <= 31;
+      return false;
+    },
+    { message: "anchor não combina com freq", path: ["anchor"] },
+  );
+export type RoutinePost = z.infer<typeof RoutinePostSchema>;
+
+export const PERIOD = /^[0-9A-Za-z-]{4,20}$/;
+export const RoutineDonePostSchema = z
+  .object({ period: z.string().regex(PERIOD) })
+  .strict();
+export type RoutineDonePost = z.infer<typeof RoutineDonePostSchema>;
 
 export const PushSubscribeSchema = z
   .object({

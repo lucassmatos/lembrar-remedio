@@ -69,6 +69,45 @@ export type ListItem = {
   createdAt: number;
 };
 
+// ── Rotinas da Casa: eventos recorrentes (calendário da casa) ───────────────
+export const ROUTINE_FREQS = ["daily", "weekly", "monthly"] as const;
+export type RoutineFreq = (typeof ROUTINE_FREQS)[number];
+
+/**
+ * Evento recorrente da casa (ex.: "Pagar escola dia 25"). Compartilhado entre
+ * parceiros via getPartner, mesmo padrão das listas. Vive em
+ * user#<ownerSub>/routine#<id>.
+ *
+ * anchor depende de freq:
+ *  - monthly: 1-31 (dia do mês)
+ *  - weekly:  0-6 (dom=0 ... sáb=6)
+ *  - daily:   undefined (toda execução)
+ *
+ * time é opcional HH:MM. Sem ele, a Timeline mostra de manhã (08:00) pra
+ * lembrar logo cedo no dia.
+ */
+export type HouseRoutine = {
+  id: string;
+  ownerSub: string;
+  title: string;
+  freq: RoutineFreq;
+  anchor?: number;
+  time?: string;
+  createdAt: number;
+  archivedAt?: number;
+};
+
+/**
+ * Marcação "feita neste período". period é YYYY-MM-DD (daily), YYYY-Www
+ * (weekly ISO) ou YYYY-MM (monthly). Sk: routinedone#<routineId>#<period>.
+ */
+export type RoutineDone = {
+  routineId: string;
+  period: string;
+  doneBy: string;
+  doneAt: number;
+};
+
 export const REMINDER_KINDS = ["medication", "vaccine", "appointment"] as const;
 export type ReminderKind = (typeof REMINDER_KINDS)[number];
 

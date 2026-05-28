@@ -14,7 +14,9 @@ import type {
   Config,
   DayLog,
   HouseList,
+  HouseRoutine,
   ListItem,
+  RoutineDone,
   NapActivity,
   PartnerRecord,
   Profile,
@@ -75,6 +77,8 @@ const SK = {
   pushSub: (id: string) => `pushsub#${id}`,
   list: (id: string) => `list#${id}`,
   listItem: (listId: string, id: string) => `listitem#${listId}#${id}`,
+  routine: (id: string) => `routine#${id}`,
+  routineDone: (routineId: string, period: string) => `routinedone#${routineId}#${period}`,
 };
 
 export async function ensureUser(
@@ -1191,6 +1195,109 @@ export async function deleteListItem(
     new DeleteCommand({
       TableName: TABLE,
       Key: { pk: PK.user(ownerSub), sk: SK.listItem(listId, id) },
+    }),
+  );
+}
+
+// ── Rotinas da Casa: eventos recorrentes ────────────────────────────────────
+// Mesmo modelo de visibilidade das listas (criador + parceiro via getPartner).
+
+export async function listHouseRoutines(ownerSub: string): Promise<HouseRoutine[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.user(ownerSub), ":sk": "routine#" },
+    }),
+  );
+  return (res.Items ?? []).map(stripKeys<HouseRoutine>);
+}
+
+/** Rotinas da casa: as do próprio + as do parceiro. Mais antigas primeiro. */
+export async function routinesForHousehold(sub: string): Promise<HouseRoutine[]> {
+  const own = await listHouseRoutines(sub);
+  const partner = await getPartner(sub);
+  const theirs = partner ? await listHouseRoutines(partner.partnerSub) : [];
+  return [...own, ...theirs].sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function getHouseRoutine(
+  ownerSub: string,
+  id: string,
+): Promise<HouseRoutine | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(ownerSub), sk: SK.routine(id) } }),
+  );
+  return res.Item ? stripKeys<HouseRoutine>(res.Item) : null;
+}
+
+export async function putHouseRoutine(
+  ownerSub: string,
+  routine: HouseRoutine,
+): Promise<HouseRoutine> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.user(ownerSub), sk: SK.routine(routine.id), ...routine },
+    }),
+  );
+  return routine;
+}
+
+/** Apaga a rotina e todas as marcações de "feito" (cascade paginado). */
+export async function deleteHouseRoutineCascade(
+  ownerSub: string,
+  routineId: string,
+): Promise<void> {
+  await deleteAllByPrefix(PK.user(ownerSub), `routinedone#${routineId}#`);
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(ownerSub), sk: SK.routine(routineId) },
+    }),
+  );
+}
+
+export async function getRoutineDone(
+  ownerSub: string,
+  routineId: string,
+  period: string,
+): Promise<RoutineDone | null> {
+  const res = await doc.send(
+    new GetCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(ownerSub), sk: SK.routineDone(routineId, period) },
+    }),
+  );
+  return res.Item ? stripKeys<RoutineDone>(res.Item) : null;
+}
+
+export async function putRoutineDone(
+  ownerSub: string,
+  done: RoutineDone,
+): Promise<RoutineDone> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: {
+        pk: PK.user(ownerSub),
+        sk: SK.routineDone(done.routineId, done.period),
+        ...done,
+      },
+    }),
+  );
+  return done;
+}
+
+export async function deleteRoutineDone(
+  ownerSub: string,
+  routineId: string,
+  period: string,
+): Promise<void> {
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(ownerSub), sk: SK.routineDone(routineId, period) },
     }),
   );
 }

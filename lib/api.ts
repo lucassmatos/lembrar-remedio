@@ -1,9 +1,9 @@
 "use client";
 
-import type { Activity, BottleContent, Config, DayLog, FeedSide, HouseList, ListItem, ListKind, NapActivity, Profile, Reminder } from "./types";
+import type { Activity, BottleContent, Config, DayLog, FeedSide, HouseList, HouseRoutine, ListItem, ListKind, NapActivity, Profile, Reminder, RoutineFreq } from "./types";
 
 const EVT = "lr:change";
-type Scope = "reminders" | "config" | "log" | "profiles" | "activities" | "lists";
+type Scope = "reminders" | "config" | "log" | "profiles" | "activities" | "lists" | "routines";
 
 function emit(scope: Scope) {
   if (typeof window !== "undefined") {
@@ -223,7 +223,7 @@ export function onChange(
 // isso dados mexidos noutro aparelho (ex.: lista da casa pelo parceiro) só
 // apareciam ao recarregar a página na mão. Throttle evita refetch duplicado
 // quando focus e visibilitychange disparam juntos.
-const ALL_SCOPES: Scope[] = ["reminders", "config", "log", "profiles", "activities", "lists"];
+const ALL_SCOPES: Scope[] = ["reminders", "config", "log", "profiles", "activities", "lists", "routines"];
 let lastRefetchAll = 0;
 export function refetchAll() {
   if (typeof window === "undefined") return;
@@ -289,6 +289,66 @@ export async function deleteItem(ownerSub: string, listId: string, itemId: strin
     { method: "DELETE" },
   );
   emit("lists");
+}
+
+// ── Rotinas da Casa ───────────────────────────────────────────────────────────
+
+export type RoutineWithStatus = HouseRoutine & {
+  currentPeriod: string;
+  doneInPeriod: boolean;
+  doneBy?: string;
+};
+
+export type RoutineInput = {
+  title: string;
+  freq: RoutineFreq;
+  anchor?: number;
+  time?: string;
+};
+
+export async function getRoutines(): Promise<RoutineWithStatus[]> {
+  const data = await jsonFetch<{ routines: RoutineWithStatus[] }>("/api/routines");
+  return data.routines;
+}
+
+export async function createRoutine(input: RoutineInput): Promise<HouseRoutine> {
+  const data = await jsonFetch<{ routine: HouseRoutine }>("/api/routines", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  emit("routines");
+  return data.routine;
+}
+
+export async function deleteRoutine(ownerSub: string, id: string): Promise<void> {
+  await jsonFetch(`/api/routines/${id}?ownerSub=${encodeURIComponent(ownerSub)}`, {
+    method: "DELETE",
+  });
+  emit("routines");
+}
+
+export async function markRoutineDone(
+  ownerSub: string,
+  routineId: string,
+  period: string,
+): Promise<void> {
+  await jsonFetch(`/api/routines/${routineId}/done?ownerSub=${encodeURIComponent(ownerSub)}`, {
+    method: "POST",
+    body: JSON.stringify({ period }),
+  });
+  emit("routines");
+}
+
+export async function unmarkRoutineDone(
+  ownerSub: string,
+  routineId: string,
+  period: string,
+): Promise<void> {
+  await jsonFetch(
+    `/api/routines/${routineId}/done?ownerSub=${encodeURIComponent(ownerSub)}&period=${encodeURIComponent(period)}`,
+    { method: "DELETE" },
+  );
+  emit("routines");
 }
 
 // ── Sharing ───────────────────────────────────────────────────────────────────

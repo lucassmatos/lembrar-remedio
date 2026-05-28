@@ -5,14 +5,19 @@ import {
   applicableLeads,
   daysBetween,
   effectiveStatus,
+  nowInTz,
   slotKey,
   todaySlots,
 } from "@/lib/schedule";
 import {
   getLog,
+  getRoutines,
+  markRoutineDone,
   onChange,
   setLogEntry,
+  unmarkRoutineDone,
   updateReminder,
+  type RoutineWithStatus,
 } from "@/lib/api";
 import type {
   DayLog,
@@ -25,6 +30,7 @@ import type {
   ReminderStatus,
 } from "@/lib/types";
 import { clock, formatDuration } from "@/lib/activity";
+import { isDueOn, timelineTime } from "@/lib/routines";
 import { KIND_META, KIND_ORDER, isReminderKind } from "@/lib/reminder-kinds";
 import { ProfileBadge } from "./profile-badge";
 
@@ -85,6 +91,51 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
     for (const r of reminders) set.add(r.kind);
     return set;
   }, [reminders]);
+
+  // Rotinas da casa devidas hoje (calendário compartilhado entre parceiros).
+  // Mostradas como bloco no topo da Timeline, sem misturar com doses por enquanto.
+  const [routines, setRoutines] = useState<RoutineWithStatus[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchRoutines() {
+      try {
+        const rs = await getRoutines();
+        if (!cancelled) setRoutines(rs);
+      } catch {
+        // ignore
+      }
+    }
+    fetchRoutines();
+    const off = onChange("routines", fetchRoutines);
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
+  const routinesDueToday = useMemo(() => {
+    const today = nowInTz(tz).date;
+    if (date !== today) return [];
+    return routines
+      .filter((r) => isDueOn(r, Date.now(), tz))
+      .slice()
+      .sort((a, b) => timelineTime(a).localeCompare(timelineTime(b)));
+  }, [routines, tz, date]);
+
+  async function toggleRoutine(r: RoutineWithStatus) {
+    const next = !r.doneInPeriod;
+    setRoutines((curr) =>
+      curr.map((x) => (x.id === r.id ? { ...x, doneInPeriod: next } : x)),
+    );
+    try {
+      if (next) await markRoutineDone(r.ownerSub, r.id, r.currentPeriod);
+      else await unmarkRoutineDone(r.ownerSub, r.id, r.currentPeriod);
+    } catch {
+      setRoutines((curr) =>
+        curr.map((x) => (x.id === r.id ? { ...x, doneInPeriod: !next } : x)),
+      );
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +262,19 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
             );
           })}
         </div>
+      ) : null}
+
+      {routinesDueToday.length > 0 ? (
+        <section className="mb-12">
+          <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
+            Rotinas de hoje
+          </h2>
+          <ol className="divide-y divide-edge">
+            {routinesDueToday.map((r) => (
+              <RoutineRow key={r.id} routine={r} onToggle={() => toggleRoutine(r)} />
+            ))}
+          </ol>
+        </section>
       ) : null}
 
       <section className="mb-12">
@@ -559,4 +623,43 @@ function CheckIcon() {
 function fmtTakenAt(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function RoutineRow({
+  routine,
+  onToggle,
+}: {
+  routine: RoutineWithStatus;
+  onToggle: () => void;
+}) {
+  const time = timelineTime(routine);
+  const done = routine.doneInPeriod;
+  return (
+    <li className="grid grid-cols-[64px_1fr_auto] items-center gap-4 py-5">
+      <TimeChip time={time} state={done ? "done" : "ahead"} />
+      <div className="min-w-0">
+        <div
+          className={
+            "font-display text-[19px] leading-tight tracking-tight transition-all " +
+            (done ? "text-ink-faint line-through decoration-edge-2" : "text-ink")
+          }
+        >
+          {routine.title}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={done}
+        className="grid size-9 place-items-center rounded-full transition-colors text-paper"
+        style={{
+          border: "1.5px solid var(--color-edge-2)",
+          background: done ? "var(--color-ink)" : "transparent",
+          borderColor: done ? "var(--color-ink)" : "var(--color-edge-2)",
+        }}
+      >
+        {done ? <CheckIcon /> : null}
+      </button>
+    </li>
+  );
 }
