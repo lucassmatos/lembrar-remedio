@@ -156,7 +156,7 @@ export function UpcomingList({
                                 size={12}
                                 strokeWidth={1.75}
                                 aria-hidden
-                                style={{ color: meta.dot }}
+                                style={{ color: profile ? `var(--color-${profile.color})` : meta.dot }}
                               />
                             );
                           })()}

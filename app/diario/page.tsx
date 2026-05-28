@@ -107,6 +107,7 @@ export default function DiarioPage() {
   }, [visible]);
 
   const activeProfile = profiles.find((p) => p.id === selected);
+  const profileById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
 
   const today = nowInTz(tz).date;
   const isToday = viewDate === today;
@@ -143,6 +144,7 @@ export default function DiarioPage() {
           openNap={openNap}
           lastFeedSide={lastFeedSide}
           aindaMama={activeProfile?.aindaMama}
+          profileColor={activeProfile?.color}
         />
       ) : null}
 
@@ -170,7 +172,7 @@ export default function DiarioPage() {
               />
             </div>
           </div>
-          <ActivityList activities={visible} tz={tz} />
+          <ActivityList activities={visible} tz={tz} profileById={profileById} />
         </section>
       ) : null}
     </Shell>

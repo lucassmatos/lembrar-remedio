@@ -34,6 +34,7 @@ import { isDueOn, timelineTime } from "@/lib/routines";
 import { KIND_META, KIND_ORDER, isReminderKind } from "@/lib/reminder-kinds";
 import { Calendar, Moon, Pill, Syringe, type LucideIcon } from "lucide-react";
 import type { ReminderKind as RK } from "@/lib/types";
+import { profileFill } from "@/lib/profile-ui";
 import { ProfileBadge } from "./profile-badge";
 
 const KIND_ICON: Record<RK, LucideIcon> = {
@@ -375,7 +376,7 @@ function SleepingBanner({
               size={20}
               strokeWidth={1.6}
               aria-hidden
-              style={{ color: "var(--color-sage)" }}
+              style={{ color: profile ? profileFill(profile.color) : "var(--color-sage)" }}
             />
             <div className="min-w-0">
               <div className="flex items-center gap-2 font-display text-[19px] tracking-tight text-ink">
@@ -431,7 +432,7 @@ function DoseRow({
               size={16}
               strokeWidth={1.75}
               aria-hidden
-              style={{ color: KIND_META.medication.dot }}
+              style={{ color: profile ? profileFill(profile.color) : KIND_META.medication.dot }}
             />
             {profile ? <ProfileBadge profile={profile} size={20} /> : null}
             <span className="min-w-0">{slot.reminder.title}</span>
@@ -511,7 +512,7 @@ function OneShotRow({
                   size={12}
                   strokeWidth={1.75}
                   aria-hidden
-                  style={{ color: meta.dot }}
+                  style={{ color: profile ? profileFill(profile.color) : meta.dot }}
                 />
               );
             })()}

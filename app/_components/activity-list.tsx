@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Activity, FeedActivity, NapActivity } from "@/lib/types";
+import type { Activity, FeedActivity, NapActivity, Profile } from "@/lib/types";
 import { feedMethod, isNap } from "@/lib/types";
 import {
   activityTime,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/activity";
 import { epochFromLocal } from "@/lib/schedule";
 import { deleteActivity, updateActivity } from "@/lib/api";
+import { profileFill } from "@/lib/profile-ui";
 import { Baby, Droplet, Milk, Moon, type LucideIcon } from "lucide-react";
 
 const FEED_ICON: Record<"breast" | "bottle" | "pump", LucideIcon> = {
@@ -22,20 +23,42 @@ const FEED_ICON: Record<"breast" | "bottle" | "pump", LucideIcon> = {
   pump: Droplet,
 };
 
-function NapIcon() {
+function NapIcon({ color }: { color?: string }) {
   return (
-    <Moon size={16} strokeWidth={1.75} aria-hidden style={{ color: "var(--color-sage)" }} />
+    <Moon
+      size={16}
+      strokeWidth={1.75}
+      aria-hidden
+      style={{ color: color ?? "var(--color-sage)" }}
+    />
   );
 }
 
-function FeedIcon({ feed }: { feed: FeedActivity }) {
+function FeedIcon({ feed, color }: { feed: FeedActivity; color?: string }) {
   const Icon = FEED_ICON[feedMethod(feed)] ?? Baby;
   return (
-    <Icon size={16} strokeWidth={1.75} aria-hidden style={{ color: "var(--color-amber)" }} />
+    <Icon
+      size={16}
+      strokeWidth={1.75}
+      aria-hidden
+      style={{ color: color ?? "var(--color-amber)" }}
+    />
   );
 }
 
-export function ActivityList({ activities, tz }: { activities: Activity[]; tz: string }) {
+export function ActivityList({
+  activities,
+  tz,
+  profileById,
+}: {
+  activities: Activity[];
+  tz: string;
+  profileById?: Map<string, Profile>;
+}) {
+  function rowColor(a: Activity): string | undefined {
+    const p = profileById?.get(a.profileId);
+    return p ? profileFill(p.color) : undefined;
+  }
   const [editing, setEditing] = useState<string | null>(null);
 
   if (activities.length === 0) {
@@ -63,6 +86,7 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
                 <NapEditor
                   nap={a}
                   tz={tz}
+                  color={rowColor(a)}
                   onCancel={() => setEditing(null)}
                   onSaved={() => setEditing(null)}
                 />
@@ -70,7 +94,7 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5">
-                      <NapIcon />
+                      <NapIcon color={rowColor(a)} />
                       <span className="font-display text-[18px] tracking-tight text-ink">
                         Soneca
                       </span>
@@ -103,7 +127,7 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2.5">
-                    <FeedIcon feed={a} />
+                    <FeedIcon feed={a} color={rowColor(a)} />
                     <span className="font-display text-[18px] tracking-tight text-ink">
                       {FEED_NOUN[feedMethod(a)]}
                       {feedDetail(a) ? (
@@ -143,11 +167,13 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
 function NapEditor({
   nap,
   tz,
+  color,
   onCancel,
   onSaved,
 }: {
   nap: NapActivity;
   tz: string;
+  color?: string;
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -177,7 +203,7 @@ function NapEditor({
   return (
     <div className="grid gap-3">
       <div className="flex items-center gap-2.5">
-        <NapIcon />
+        <NapIcon color={color} />
         <span className="font-display text-[18px] tracking-tight text-ink">Soneca</span>
       </div>
       <div className="flex flex-wrap items-end gap-4">

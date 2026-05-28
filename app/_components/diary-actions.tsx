@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { BottleContent, FeedMethod, FeedSide, NapActivity } from "@/lib/types";
+import type { BottleContent, FeedMethod, FeedSide, NapActivity, ProfileColor } from "@/lib/types";
 import { clock, CONTENT_LABEL, formatDuration, nextSide, SIDE_LABEL } from "@/lib/activity";
 import { logFeed, startNap, stopNap, type FeedInput } from "@/lib/api";
+import { profileFill } from "@/lib/profile-ui";
 import { Moon } from "lucide-react";
 
 const ML_PRESETS = [30, 60, 90, 120, 150, 180];
@@ -14,12 +15,14 @@ export function DiaryActions({
   openNap,
   lastFeedSide,
   aindaMama = false,
+  profileColor,
 }: {
   profileId: string;
   tz: string;
   openNap: NapActivity | null;
   lastFeedSide?: FeedSide;
   aindaMama?: boolean;
+  profileColor?: ProfileColor;
 }) {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -69,7 +72,7 @@ export function DiaryActions({
                   size={22}
                   strokeWidth={1.6}
                   aria-hidden
-                  style={{ color: "var(--color-sage)" }}
+                  style={{ color: profileColor ? profileFill(profileColor) : "var(--color-sage)" }}
                 />
                 dormindo
               </div>
