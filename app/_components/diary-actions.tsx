@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { BottleContent, FeedMethod, FeedSide, NapActivity } from "@/lib/types";
 import { clock, CONTENT_LABEL, formatDuration, nextSide, SIDE_LABEL } from "@/lib/activity";
 import { logFeed, startNap, stopNap, type FeedInput } from "@/lib/api";
+import { Moon } from "lucide-react";
 
 const ML_PRESETS = [30, 60, 90, 120, 150, 180];
 
@@ -64,10 +65,11 @@ export function DiaryActions({
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2.5 font-display text-[22px] tracking-tight text-ink">
-                <span
+                <Moon
+                  size={22}
+                  strokeWidth={1.6}
                   aria-hidden
-                  className="size-2.5 shrink-0 rounded-full"
-                  style={{ background: "var(--color-sage)" }}
+                  style={{ color: "var(--color-sage)" }}
                 />
                 dormindo
               </div>

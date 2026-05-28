@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Activity, NapActivity } from "@/lib/types";
+import type { Activity, FeedActivity, NapActivity } from "@/lib/types";
 import { feedMethod, isNap } from "@/lib/types";
 import {
   activityTime,
@@ -12,18 +12,28 @@ import {
   formatDuration,
   nextSide,
 } from "@/lib/activity";
-
-function Dot({ tone }: { tone: "sono" | "mamada" }) {
-  return (
-    <span
-      aria-hidden
-      className="size-2 shrink-0 rounded-full"
-      style={{ background: tone === "sono" ? "var(--color-sage)" : "var(--color-amber)" }}
-    />
-  );
-}
 import { epochFromLocal } from "@/lib/schedule";
 import { deleteActivity, updateActivity } from "@/lib/api";
+import { Baby, Droplet, Milk, Moon, type LucideIcon } from "lucide-react";
+
+const FEED_ICON: Record<"breast" | "bottle" | "pump", LucideIcon> = {
+  breast: Baby,
+  bottle: Milk,
+  pump: Droplet,
+};
+
+function NapIcon() {
+  return (
+    <Moon size={16} strokeWidth={1.75} aria-hidden style={{ color: "var(--color-sage)" }} />
+  );
+}
+
+function FeedIcon({ feed }: { feed: FeedActivity }) {
+  const Icon = FEED_ICON[feedMethod(feed)] ?? Baby;
+  return (
+    <Icon size={16} strokeWidth={1.75} aria-hidden style={{ color: "var(--color-amber)" }} />
+  );
+}
 
 export function ActivityList({ activities, tz }: { activities: Activity[]; tz: string }) {
   const [editing, setEditing] = useState<string | null>(null);
@@ -60,7 +70,7 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5">
-                      <Dot tone="sono" />
+                      <NapIcon />
                       <span className="font-display text-[18px] tracking-tight text-ink">
                         Soneca
                       </span>
@@ -93,7 +103,7 @@ export function ActivityList({ activities, tz }: { activities: Activity[]; tz: s
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2.5">
-                    <Dot tone="mamada" />
+                    <FeedIcon feed={a} />
                     <span className="font-display text-[18px] tracking-tight text-ink">
                       {FEED_NOUN[feedMethod(a)]}
                       {feedDetail(a) ? (
@@ -167,7 +177,7 @@ function NapEditor({
   return (
     <div className="grid gap-3">
       <div className="flex items-center gap-2.5">
-        <Dot tone="sono" />
+        <NapIcon />
         <span className="font-display text-[18px] tracking-tight text-ink">Soneca</span>
       </div>
       <div className="flex flex-wrap items-end gap-4">

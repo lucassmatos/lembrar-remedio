@@ -32,7 +32,15 @@ import type {
 import { clock, formatDuration } from "@/lib/activity";
 import { isDueOn, timelineTime } from "@/lib/routines";
 import { KIND_META, KIND_ORDER, isReminderKind } from "@/lib/reminder-kinds";
+import { Calendar, Moon, Pill, Syringe, type LucideIcon } from "lucide-react";
+import type { ReminderKind as RK } from "@/lib/types";
 import { ProfileBadge } from "./profile-badge";
+
+const KIND_ICON: Record<RK, LucideIcon> = {
+  medication: Pill,
+  appointment: Calendar,
+  vaccine: Syringe,
+};
 
 type Props = {
   date: string;
@@ -252,11 +260,18 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
                     : "border border-edge-2 text-ink-faint hover:border-ink-soft hover:text-ink-soft")
                 }
               >
-                <span
-                  aria-hidden
-                  className={"size-2 shrink-0 rounded-full " + (on ? "opacity-90" : "opacity-50")}
-                  style={{ background: m.dot }}
-                />
+                {(() => {
+                  const Icon = KIND_ICON[k];
+                  return (
+                    <Icon
+                      size={14}
+                      strokeWidth={1.75}
+                      aria-hidden
+                      className={on ? "" : "opacity-50"}
+                      style={{ color: on ? "var(--color-paper)" : m.dot }}
+                    />
+                  );
+                })()}
                 {m.plural}
               </button>
             );
@@ -356,10 +371,11 @@ function SleepingBanner({
             className="flex items-center gap-3 rounded-2xl border border-edge px-5 py-4"
             style={{ background: "var(--color-paper-2)" }}
           >
-            <span
+            <Moon
+              size={20}
+              strokeWidth={1.6}
               aria-hidden
-              className="size-2.5 shrink-0 rounded-full"
-              style={{ background: "var(--color-sage)" }}
+              style={{ color: "var(--color-sage)" }}
             />
             <div className="min-w-0">
               <div className="flex items-center gap-2 font-display text-[19px] tracking-tight text-ink">
@@ -411,10 +427,11 @@ function DoseRow({
               (slot.taken ? "text-ink-faint line-through decoration-edge-2" : "text-ink")
             }
           >
-            <span
+            <Pill
+              size={16}
+              strokeWidth={1.75}
               aria-hidden
-              className="size-2 shrink-0 rounded-full"
-              style={{ background: KIND_META.medication.dot }}
+              style={{ color: KIND_META.medication.dot }}
             />
             {profile ? <ProfileBadge profile={profile} size={20} /> : null}
             <span className="min-w-0">{slot.reminder.title}</span>
@@ -487,11 +504,17 @@ function OneShotRow({
         {/* status + ação */}
         <div className="flex shrink-0 flex-col items-end gap-2 text-[12px]">
           <span className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="size-1.5 shrink-0 rounded-full"
-              style={{ background: meta.dot }}
-            />
+            {(() => {
+              const Icon = KIND_ICON[item.reminder.kind] ?? Calendar;
+              return (
+                <Icon
+                  size={12}
+                  strokeWidth={1.75}
+                  aria-hidden
+                  style={{ color: meta.dot }}
+                />
+              );
+            })()}
             <span className={unscheduled ? "font-medium text-amber" : "text-ink-soft"}>
               {unscheduled ? "Agendar" : "Agendada"}
             </span>

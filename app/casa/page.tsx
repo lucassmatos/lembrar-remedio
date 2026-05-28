@@ -68,19 +68,12 @@ export default function CasaPage() {
     };
   }, []);
 
-  // No detalhe da lista, encolhe o cabeçalho da tela pra um crumb — assim o
-  // nome da lista (h2 serif) carrega o foco sozinho, sem dois títulos serif
-  // competindo na vertical.
-  const header = open ? (
-    <section className="mb-6">
-      <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">casa · recados</p>
-    </section>
-  ) : (
-    <section className="mb-10">
+  // Sem h1 dedicado: a página tem duas seções (Rotinas + Listas) cada uma com
+  // seu serif h2 — um h1 "Casa" no topo vira ruído e o velho "Recados" não
+  // descreve mais o que mora aqui. Kicker só, single source of truth.
+  const header = (
+    <section className="mb-8">
       <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">casa</p>
-      <h1 className="mt-1 font-display text-[44px] leading-[1.05] tracking-tight text-ink">
-        Recados
-      </h1>
     </section>
   );
 
@@ -463,45 +456,53 @@ function NewRoutineForm({ onDone }: { onDone: () => void }) {
     else setAnchor(0);
   }
 
-  return (
-    <form onSubmit={submit} className="mb-4 grid gap-3 rounded-2xl p-4" style={{ border: "1px solid var(--color-edge)", background: "var(--color-paper-2)" }}>
-      <input
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="nome (ex.: Pagar escola Matheus)"
-        maxLength={80}
-        disabled={busy}
-        className="w-full rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink disabled:opacity-60"
-        style={{ border: "1px solid var(--color-edge-2)" }}
-      />
+  const inputCls =
+    "w-full rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink disabled:opacity-60";
 
-      <div
-        className="grid grid-cols-3 gap-1.5 rounded-full p-1"
-        style={{ border: "1px solid var(--color-edge-2)" }}
-      >
-        {ROUTINE_FREQS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            aria-pressed={freq === f}
-            onClick={() => changeFreq(f)}
-            className={
-              "rounded-full py-2 text-[14px] font-medium transition-colors " +
-              (freq === f ? "text-paper" : "text-ink-soft hover:text-ink")
-            }
-            style={freq === f ? { background: "var(--color-ink)" } : undefined}
-          >
-            {f === "daily" ? "Diária" : f === "weekly" ? "Semanal" : "Mensal"}
-          </button>
-        ))}
-      </div>
+  return (
+    <form
+      onSubmit={submit}
+      className="mb-4 grid gap-5 rounded-2xl p-5"
+      style={{ border: "1px solid var(--color-edge)", background: "var(--color-paper-2)" }}
+    >
+      <Field label="o que é">
+        <input
+          autoFocus
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="ex.: Pagar escola do Matheus"
+          maxLength={80}
+          disabled={busy}
+          className={inputCls}
+          style={{ border: "1px solid var(--color-edge-2)" }}
+        />
+      </Field>
+
+      <Field label="frequência">
+        <div
+          className="grid grid-cols-3 gap-1.5 rounded-full p-1"
+          style={{ border: "1px solid var(--color-edge-2)" }}
+        >
+          {ROUTINE_FREQS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              aria-pressed={freq === f}
+              onClick={() => changeFreq(f)}
+              className={
+                "rounded-full py-2 text-[14px] font-medium transition-colors " +
+                (freq === f ? "text-paper" : "text-ink-soft hover:text-ink")
+              }
+              style={freq === f ? { background: "var(--color-ink)" } : undefined}
+            >
+              {f === "daily" ? "Diária" : f === "weekly" ? "Semanal" : "Mensal"}
+            </button>
+          ))}
+        </div>
+      </Field>
 
       {freq !== "daily" ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-[12px] uppercase tracking-[0.16em] text-ink-faint">
-            {freq === "monthly" ? "dia do mês" : "dia da semana"}
-          </label>
+        <Field label={freq === "monthly" ? "dia do mês" : "dia da semana"}>
           {freq === "monthly" ? (
             <input
               type="number"
@@ -509,14 +510,14 @@ function NewRoutineForm({ onDone }: { onDone: () => void }) {
               max={31}
               value={anchor}
               onChange={(e) => setAnchor(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
-              className="tnum w-20 rounded-lg bg-transparent px-3 py-1.5 text-[15px] text-ink outline-none focus:border-ink"
+              className={"tnum " + inputCls}
               style={{ border: "1px solid var(--color-edge-2)" }}
             />
           ) : (
             <select
               value={anchor}
               onChange={(e) => setAnchor(Number(e.target.value))}
-              className="rounded-lg bg-transparent px-3 py-1.5 text-[15px] text-ink outline-none focus:border-ink"
+              className={inputCls}
               style={{ border: "1px solid var(--color-edge-2)" }}
             >
               <option value={1}>Segunda</option>
@@ -528,30 +529,24 @@ function NewRoutineForm({ onDone }: { onDone: () => void }) {
               <option value={0}>Domingo</option>
             </select>
           )}
-        </div>
+        </Field>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="text-[12px] uppercase tracking-[0.16em] text-ink-faint">
-          horário (opcional)
-        </label>
+      <Field label="horário (opcional)" hint={!time ? "vazio = aparece às 08:00 na timeline" : undefined}>
         <input
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          className="tnum rounded-lg bg-transparent px-3 py-1.5 text-[15px] text-ink outline-none focus:border-ink"
+          className={"tnum " + inputCls}
           style={{ border: "1px solid var(--color-edge-2)" }}
         />
-        {!time ? (
-          <span className="text-[12px] text-ink-faint">vazio = mostra 08:00 na timeline</span>
-        ) : null}
-      </div>
+      </Field>
 
-      <div className="flex items-center gap-3 text-[14px]">
+      <div className="flex items-center gap-3 pt-1 text-[14px]">
         <button
           type="submit"
           disabled={busy}
-          className="rounded-full bg-ink px-4 py-2 text-[14px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
+          className="rounded-full bg-ink px-5 py-2 text-[14px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
         >
           criar
         </button>
@@ -564,6 +559,24 @@ function NewRoutineForm({ onDone }: { onDone: () => void }) {
         </button>
       </div>
     </form>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-2">
+      <p className="text-[12px] uppercase tracking-[0.16em] text-ink-faint">{label}</p>
+      {children}
+      {hint ? <p className="text-[12px] text-ink-faint">{hint}</p> : null}
+    </div>
   );
 }
 

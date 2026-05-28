@@ -12,6 +12,13 @@ import { getProfiles, getReminders, onChange } from "@/lib/api";
 import type { ProfileWithAccess } from "@/lib/api";
 import type { Reminder, ReminderKind } from "@/lib/types";
 import { KIND_META, KIND_ORDER, isReminderKind } from "@/lib/reminder-kinds";
+import { Calendar, Pill, Syringe, type LucideIcon } from "lucide-react";
+
+const KIND_ICON: Record<ReminderKind, LucideIcon> = {
+  medication: Pill,
+  appointment: Calendar,
+  vaccine: Syringe,
+};
 
 const SELECTED_KEY = "lr.profile.selected.v1";
 const KIND_KEY = "lr.lembretes.kind.v1";
@@ -122,11 +129,17 @@ export default function LembretesPage() {
                       : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
                   }
                 >
-                  <span
-                    aria-hidden
-                    className={"size-2 shrink-0 rounded-full " + (active ? "opacity-90" : "")}
-                    style={{ background: m.dot }}
-                  />
+                  {(() => {
+                    const Icon = KIND_ICON[k];
+                    return (
+                      <Icon
+                        size={14}
+                        strokeWidth={1.75}
+                        aria-hidden
+                        style={{ color: active ? "var(--color-paper)" : m.dot }}
+                      />
+                    );
+                  })()}
                   {m.plural}
                 </button>
               );

@@ -7,9 +7,10 @@ import {
   formatBrDate,
   nowInTz,
 } from "@/lib/schedule";
-import type { OneShotSchedule, Profile, Reminder } from "@/lib/types";
+import type { OneShotSchedule, Profile, Reminder, ReminderKind } from "@/lib/types";
 import { OneShotForm } from "./one-shot-form";
 import { ProfileBadge } from "./profile-badge";
+import { Calendar, Pill, Syringe, type LucideIcon } from "lucide-react";
 
 type Tab = "upcoming" | "history";
 
@@ -24,6 +25,12 @@ const KIND_META = {
   appointment: { dot: "var(--color-sand)", noun: "Consulta" },
   medication: { dot: "var(--color-sage)", noun: "Medicamento" },
 } as const;
+
+const KIND_ICON: Record<ReminderKind, LucideIcon> = {
+  medication: Pill,
+  appointment: Calendar,
+  vaccine: Syringe,
+};
 
 export function UpcomingList({
   reminders,
@@ -142,11 +149,17 @@ export function UpcomingList({
                         ) : null
                       ) : (
                         <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">
-                          <span
-                            aria-hidden
-                            className="size-1.5 shrink-0 rounded-full"
-                            style={{ background: meta.dot }}
-                          />
+                          {(() => {
+                            const Icon = KIND_ICON[reminder.kind] ?? Calendar;
+                            return (
+                              <Icon
+                                size={12}
+                                strokeWidth={1.75}
+                                aria-hidden
+                                style={{ color: meta.dot }}
+                              />
+                            );
+                          })()}
                           {meta.noun}
                           {showProfile && profile ? (
                             <>
