@@ -20,9 +20,9 @@ type Item = {
 };
 
 const KIND_META = {
-  vaccine: { icon: "💉", noun: "Vacina" },
-  appointment: { icon: "📅", noun: "Consulta" },
-  medication: { icon: "💊", noun: "Medicamento" },
+  vaccine: { dot: "var(--color-sky)", noun: "Vacina" },
+  appointment: { dot: "var(--color-sand)", noun: "Consulta" },
+  medication: { dot: "var(--color-sage)", noun: "Medicamento" },
 } as const;
 
 export function UpcomingList({
@@ -142,7 +142,11 @@ export function UpcomingList({
                         ) : null
                       ) : (
                         <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">
-                          <span aria-hidden>{meta.icon}</span>
+                          <span
+                            aria-hidden
+                            className="size-1.5 shrink-0 rounded-full"
+                            style={{ background: meta.dot }}
+                          />
                           {meta.noun}
                           {showProfile && profile ? (
                             <>

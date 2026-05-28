@@ -122,9 +122,11 @@ export default function LembretesPage() {
                       : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
                   }
                 >
-                  <span aria-hidden className="text-[16px] leading-none">
-                    {m.icon}
-                  </span>
+                  <span
+                    aria-hidden
+                    className={"size-2 shrink-0 rounded-full " + (active ? "opacity-90" : "")}
+                    style={{ background: m.dot }}
+                  />
                   {m.plural}
                 </button>
               );

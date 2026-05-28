@@ -2,7 +2,10 @@ import type { ReminderKind } from "./types";
 
 export type ReminderKindMeta = {
   kind: ReminderKind;
+  /** Emoji usado em superfícies externas (Telegram, push). Na UI use `dot`. */
   icon: string;
+  /** Cor da bolinha de categoria na UI (token CSS), no lugar do emoji. */
+  dot: string;
   noun: string;
   plural: string;
   newLabel: string;
@@ -16,6 +19,7 @@ export const KIND_META: Record<ReminderKind, ReminderKindMeta> = {
   medication: {
     kind: "medication",
     icon: "💊",
+    dot: "var(--color-sage)",
     noun: "Medicamento",
     plural: "Medicamentos",
     newLabel: "Novo medicamento",
@@ -23,6 +27,7 @@ export const KIND_META: Record<ReminderKind, ReminderKindMeta> = {
   appointment: {
     kind: "appointment",
     icon: "📅",
+    dot: "var(--color-sand)",
     noun: "Consulta",
     plural: "Consultas",
     newLabel: "Nova consulta",
@@ -32,6 +37,7 @@ export const KIND_META: Record<ReminderKind, ReminderKindMeta> = {
   vaccine: {
     kind: "vaccine",
     icon: "💉",
+    dot: "var(--color-sky)",
     noun: "Vacina",
     plural: "Vacinas",
     newLabel: "Nova vacina",

@@ -41,34 +41,30 @@ export default function CasaPage() {
     };
   }, []);
 
+  // No detalhe da lista, encolhe o cabeçalho da tela pra um crumb — assim o
+  // nome da lista (h2 serif) carrega o foco sozinho, sem dois títulos serif
+  // competindo na vertical.
+  const header = open ? (
+    <section className="mb-6">
+      <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">casa · recados</p>
+    </section>
+  ) : (
+    <section className="mb-10">
+      <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">casa</p>
+      <h1 className="mt-1 font-display text-[44px] leading-[1.05] tracking-tight text-ink">
+        Recados
+      </h1>
+    </section>
+  );
+
   return (
-    <Shell
-      current="casa"
-      header={
-        <section className="mb-10">
-          <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">casa</p>
-          <h1 className="mt-1 font-display text-[44px] leading-[1.05] tracking-tight text-ink">
-            Recados
-          </h1>
-        </section>
-      }
-    >
+    <Shell current="casa" header={header}>
       {!mounted ? null : open ? (
         <ListDetail list={open} onBack={() => setOpen(null)} />
       ) : (
         <ListsView lists={lists} onOpen={setOpen} />
       )}
     </Shell>
-  );
-}
-
-function Dot() {
-  return (
-    <span
-      aria-hidden
-      className="size-2 shrink-0 rounded-full"
-      style={{ background: "var(--color-sky)" }}
-    />
   );
 }
 
@@ -113,18 +109,12 @@ function ListsView({ lists, onOpen }: { lists: HouseList[]; onOpen: (l: HouseLis
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="nome da lista (ex.: Compras)"
+            placeholder="nome da lista, Enter pra criar"
             maxLength={80}
-            className="min-w-0 flex-1 rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+            disabled={busy}
+            className="min-w-0 flex-1 rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink disabled:opacity-60"
             style={{ border: "1px solid var(--color-edge-2)" }}
           />
-          <button
-            type="submit"
-            disabled={busy}
-            className="shrink-0 rounded-full bg-ink px-4 py-2 text-[14px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
-          >
-            criar
-          </button>
           <button
             type="button"
             onClick={() => {
@@ -151,11 +141,8 @@ function ListsView({ lists, onOpen }: { lists: HouseList[]; onOpen: (l: HouseLis
                 onClick={() => onOpen(l)}
                 className="flex w-full items-center justify-between gap-4 py-4 text-left transition-colors hover:opacity-80"
               >
-                <span className="flex min-w-0 items-center gap-2.5">
-                  <Dot />
-                  <span className="truncate font-display text-[18px] tracking-tight text-ink">
-                    {l.title}
-                  </span>
+                <span className="min-w-0 truncate font-display text-[18px] tracking-tight text-ink">
+                  {l.title}
                 </span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden className="shrink-0 text-ink-faint">
                   <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -172,7 +159,6 @@ function ListsView({ lists, onOpen }: { lists: HouseList[]; onOpen: (l: HouseLis
 function ListDetail({ list, onBack }: { list: HouseList; onBack: () => void }) {
   const [items, setItems] = useState<ListItem[]>([]);
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
   const owner = list.ownerSub;
 
   useEffect(() => {
@@ -193,17 +179,49 @@ function ListDetail({ list, onBack }: { list: HouseList; onBack: () => void }) {
     };
   }, [owner, list.id]);
 
-  async function add(e: React.FormEvent) {
+  // Atualizações otimistas com setState funcional: NUNCA `setItems(items.map(...))`,
+  // sempre `setItems(curr => curr.map(...))`. A versão com closure pega snapshot
+  // velho e dois cliques rápidos revertem o que o anterior fez.
+  async function addLocal(e: React.FormEvent) {
     e.preventDefault();
-    if (busy || !text.trim()) return;
-    setBusy(true);
+    const t = text.trim();
+    if (!t) return;
+    const tempId = "tmp-" + Math.random().toString(36).slice(2, 10);
+    const temp: ListItem = {
+      id: tempId,
+      listId: list.id,
+      text: t,
+      done: false,
+      addedBy: "?",
+      createdAt: Date.now(),
+    };
+    setItems((curr) => [...curr, temp]);
+    setText("");
     try {
-      await addItem(owner, list.id, text.trim());
-      setText("");
+      const real = await addItem(owner, list.id, t);
+      setItems((curr) => curr.map((i) => (i.id === tempId ? real : i)));
     } catch {
-      // ignore
-    } finally {
-      setBusy(false);
+      setItems((curr) => curr.filter((i) => i.id !== tempId));
+    }
+  }
+
+  async function toggle(item: ListItem) {
+    const next = !item.done;
+    setItems((curr) => curr.map((i) => (i.id === item.id ? { ...i, done: next } : i)));
+    try {
+      await setItemDone(owner, item.listId, item.id, next);
+    } catch {
+      setItems((curr) => curr.map((i) => (i.id === item.id ? { ...i, done: !next } : i)));
+    }
+  }
+
+  async function remove(item: ListItem) {
+    setItems((curr) => curr.filter((i) => i.id !== item.id));
+    try {
+      await deleteItem(owner, item.listId, item.id);
+    } catch {
+      // rollback: recoloca preservando ordem por createdAt
+      setItems((curr) => [...curr, item].sort((a, b) => a.createdAt - b.createdAt));
     }
   }
 
@@ -213,12 +231,9 @@ function ListDetail({ list, onBack }: { list: HouseList; onBack: () => void }) {
     onBack();
   }
 
-  const pending = items.filter((i) => !i.done);
-  const done = items.filter((i) => i.done);
-
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between gap-4 border-b border-edge pb-3">
+      <div className="mb-4 border-b border-edge pb-3">
         <button
           type="button"
           onClick={onBack}
@@ -229,6 +244,34 @@ function ListDetail({ list, onBack }: { list: HouseList; onBack: () => void }) {
           </svg>
           listas
         </button>
+      </div>
+
+      <h2 className="mb-5 font-display text-[32px] leading-[1.1] tracking-tight text-ink">
+        {list.title}
+      </h2>
+
+      <form onSubmit={addLocal} className="mb-5">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="adicionar item, Enter pra criar"
+          maxLength={200}
+          className="w-full rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+          style={{ border: "1px solid var(--color-edge-2)" }}
+        />
+      </form>
+
+      {items.length === 0 ? (
+        <p className="py-2 text-[15px] text-ink-soft">Lista vazia. Adicione o primeiro item.</p>
+      ) : (
+        <ul className="divide-y divide-edge">
+          {items.map((it) => (
+            <ItemRow key={it.id} item={it} onToggle={toggle} onRemove={remove} />
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-10 border-t border-edge pt-4">
         <button
           type="button"
           onClick={removeList}
@@ -237,54 +280,24 @@ function ListDetail({ list, onBack }: { list: HouseList; onBack: () => void }) {
           apagar lista
         </button>
       </div>
-
-      <h2 className="mb-4 font-display text-[24px] leading-none tracking-tight text-ink">
-        {list.title}
-      </h2>
-
-      <form onSubmit={add} className="mb-5 flex items-center gap-2">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="adicionar item"
-          maxLength={200}
-          className="min-w-0 flex-1 rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
-          style={{ border: "1px solid var(--color-edge-2)" }}
-        />
-        <button
-          type="submit"
-          disabled={busy}
-          className="shrink-0 rounded-full bg-ink px-4 py-2 text-[14px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
-        >
-          adicionar
-        </button>
-      </form>
-
-      {items.length === 0 ? (
-        <p className="py-2 text-[15px] text-ink-soft">Lista vazia. Adicione o primeiro item.</p>
-      ) : (
-        <ul className="divide-y divide-edge">
-          {[...pending, ...done].map((it) => (
-            <ItemRow key={it.id} item={it} ownerSub={owner} />
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
 
-function ItemRow({ item, ownerSub }: { item: ListItem; ownerSub: string }) {
-  async function toggle() {
-    await setItemDone(ownerSub, item.listId, item.id, !item.done);
-  }
-  async function remove() {
-    await deleteItem(ownerSub, item.listId, item.id);
-  }
+function ItemRow({
+  item,
+  onToggle,
+  onRemove,
+}: {
+  item: ListItem;
+  onToggle: (i: ListItem) => void;
+  onRemove: (i: ListItem) => void;
+}) {
   return (
     <li className="flex items-center justify-between gap-3 py-3">
       <button
         type="button"
-        onClick={toggle}
+        onClick={() => onToggle(item)}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
         aria-pressed={item.done}
       >
@@ -313,7 +326,7 @@ function ItemRow({ item, ownerSub }: { item: ListItem; ownerSub: string }) {
       </button>
       <button
         type="button"
-        onClick={remove}
+        onClick={() => onRemove(item)}
         className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-clay"
       >
         apagar

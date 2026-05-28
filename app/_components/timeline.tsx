@@ -156,8 +156,11 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
       return copy;
     });
     try {
-      const updated = await setLogEntry(date, key, next);
-      setLog(updated);
+      await setLogEntry(date, key, next);
+      // NÃO sobrescreve o estado local com a resposta do servidor: o snapshot
+      // que volta é deste único toggle, então em cliques rápidos a resposta do
+      // 1º clique chega DEPOIS do 2º clique e zera o 2º. O optimistic acima já
+      // é a verdade local; cross-device sync vem via focus refetch.
     } catch {
       const fresh = await getLog(date).catch(() => ({}));
       setLog(fresh);
@@ -198,9 +201,11 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
                     : "border border-edge-2 text-ink-faint hover:border-ink-soft hover:text-ink-soft")
                 }
               >
-                <span aria-hidden className={"text-[14px] leading-none " + (on ? "" : "opacity-50")}>
-                  {m.icon}
-                </span>
+                <span
+                  aria-hidden
+                  className={"size-2 shrink-0 rounded-full " + (on ? "opacity-90" : "opacity-50")}
+                  style={{ background: m.dot }}
+                />
                 {m.plural}
               </button>
             );
@@ -289,11 +294,9 @@ function SleepingBanner({
           >
             <span
               aria-hidden
-              className="text-[22px] leading-none"
-              style={{ animation: "ring-pulse 2.4s ease-in-out infinite", borderRadius: 12 }}
-            >
-              😴
-            </span>
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ background: "var(--color-sage)" }}
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-2 font-display text-[19px] tracking-tight text-ink">
                 {profile ? <ProfileBadge profile={profile} size={20} /> : null}
@@ -344,7 +347,11 @@ function DoseRow({
               (slot.taken ? "text-ink-faint line-through decoration-edge-2" : "text-ink")
             }
           >
-            <span aria-hidden className="text-[15px] leading-none">💊</span>
+            <span
+              aria-hidden
+              className="size-2 shrink-0 rounded-full"
+              style={{ background: KIND_META.medication.dot }}
+            />
             {profile ? <ProfileBadge profile={profile} size={20} /> : null}
             <span className="min-w-0">{slot.reminder.title}</span>
           </div>
@@ -416,7 +423,11 @@ function OneShotRow({
         {/* status + ação */}
         <div className="flex shrink-0 flex-col items-end gap-2 text-[12px]">
           <span className="flex items-center gap-1.5">
-            <span aria-hidden className="text-[12px] leading-none">{meta.icon}</span>
+            <span
+              aria-hidden
+              className="size-1.5 shrink-0 rounded-full"
+              style={{ background: meta.dot }}
+            />
             <span className={unscheduled ? "font-medium text-amber" : "text-ink-soft"}>
               {unscheduled ? "Agendar" : "Agendada"}
             </span>
