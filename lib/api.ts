@@ -297,6 +297,20 @@ export type RoutineWithStatus = HouseRoutine & {
   currentPeriod: string;
   doneInPeriod: boolean;
   doneBy?: string;
+  /**
+   * Próxima ocorrência relevante pra Timeline (monthly/weekly):
+   *  - se period atual não foi feito: aponta pro anchor desse período (pode
+   *    estar `isOverdue` se já passou)
+   *  - senão: aponta pro próximo período, dentro do lookahead da freq
+   *  - daily não tem `next` (vive só em "Rotinas de hoje")
+   */
+  next?: {
+    date: string;
+    period: string;
+    daysAway: number;
+    isOverdue: boolean;
+    done: boolean;
+  } | null;
 };
 
 export type RoutineInput = {

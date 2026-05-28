@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { getConfig, getRoutineDone, putHouseRoutine, routinesForHousehold } from "@/lib/ddb";
-import { periodFor } from "@/lib/routines";
+import { candidatesFor, periodFor, type RoutineOccurrence } from "@/lib/routines";
 import { requireSession } from "@/lib/session";
 import type { HouseRoutine } from "@/lib/types";
 import { parseBody, RoutinePostSchema } from "@/lib/validation";
+
+// Quão à frente mostrar a próxima ocorrência (quando o período atual já foi feito).
+const LOOKAHEAD: Record<"monthly" | "weekly", number> = {
+  monthly: 14,
+  weekly: 7,
+};
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,11 +29,27 @@ export async function GET() {
     routines.map(async (r) => {
       const period = periodFor(r, now, tz);
       const done = await getRoutineDone(r.ownerSub, r.id, period);
+
+      // Próxima ocorrência pra mostrar em "Próximos":
+      // - Se o período atual não tá done, mostra ele (mesmo atrasado).
+      // - Senão mostra o próximo, se estiver dentro do lookahead da freq.
+      let next: (RoutineOccurrence & { done: boolean }) | null = null;
+      if (r.freq === "monthly" || r.freq === "weekly") {
+        const { current, next: cand } = candidatesFor(r, now, tz);
+        if (current && !done) {
+          next = { ...current, done: false };
+        } else if (cand && cand.daysAway <= LOOKAHEAD[r.freq]) {
+          const doneNext = await getRoutineDone(r.ownerSub, r.id, cand.period);
+          next = { ...cand, done: !!doneNext };
+        }
+      }
+
       return {
         ...r,
         currentPeriod: period,
         doneInPeriod: !!done,
         doneBy: done?.doneBy,
+        next,
       };
     }),
   );

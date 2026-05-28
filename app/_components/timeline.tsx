@@ -30,7 +30,7 @@ import type {
   ReminderStatus,
 } from "@/lib/types";
 import { clock, formatDuration } from "@/lib/activity";
-import { isDueOn, timelineTime } from "@/lib/routines";
+import { freqLabel, isDueOn, timelineTime } from "@/lib/routines";
 import { KIND_META, KIND_ORDER, isReminderKind } from "@/lib/reminder-kinds";
 import { Calendar, Moon, Pill, Syringe, type LucideIcon } from "lucide-react";
 import type { ReminderKind as RK } from "@/lib/types";
@@ -131,18 +131,50 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
       .sort((a, b) => timelineTime(a).localeCompare(timelineTime(b)));
   }, [routines, tz, date]);
 
-  async function toggleRoutine(r: RoutineWithStatus) {
-    const next = !r.doneInPeriod;
-    setRoutines((curr) =>
-      curr.map((x) => (x.id === r.id ? { ...x, doneInPeriod: next } : x)),
-    );
+  // Atrasadas: período atual passou do anchor e não foi marcado feito.
+  // (next.isOverdue só vem true quando current period não tá done — server-side.)
+  const overdueRoutines = useMemo(() => {
+    const today = nowInTz(tz).date;
+    if (date !== today) return [];
+    return routines
+      .filter((r) => r.next?.isOverdue && !r.next.done)
+      .slice()
+      .sort((a, b) => a.next!.daysAway - b.next!.daysAway);
+  }, [routines, tz, date]);
+
+  // Próximas: ocorrência futura dentro do lookahead da freq. Exclui hoje (que
+  // vive em "Rotinas de hoje") e atrasadas (que viraram a seção própria).
+  const upcomingRoutines = useMemo(() => {
+    const today = nowInTz(tz).date;
+    if (date !== today) return [];
+    return routines
+      .filter((r) => r.next && !r.next.isOverdue && r.next.daysAway > 0)
+      .slice()
+      .sort((a, b) => a.next!.daysAway - b.next!.daysAway);
+  }, [routines, tz, date]);
+
+  // Toggle pra um período arbitrário (current OU next). Necessário porque a
+  // mesma rotina pode aparecer em "Atrasado" (current period) e em "Próximos"
+  // (next period); cada linha mexe no seu próprio.
+  async function toggleRoutineForPeriod(r: RoutineWithStatus, period: string) {
+    const currentlyDone =
+      period === r.currentPeriod
+        ? r.doneInPeriod
+        : r.next?.period === period
+          ? !!r.next.done
+          : false;
+    const next = !currentlyDone;
+    const apply = (x: RoutineWithStatus, value: boolean): RoutineWithStatus => {
+      if (period === x.currentPeriod) return { ...x, doneInPeriod: value };
+      if (x.next && x.next.period === period) return { ...x, next: { ...x.next, done: value } };
+      return x;
+    };
+    setRoutines((curr) => curr.map((x) => (x.id === r.id ? apply(x, next) : x)));
     try {
-      if (next) await markRoutineDone(r.ownerSub, r.id, r.currentPeriod);
-      else await unmarkRoutineDone(r.ownerSub, r.id, r.currentPeriod);
+      if (next) await markRoutineDone(r.ownerSub, r.id, period);
+      else await unmarkRoutineDone(r.ownerSub, r.id, period);
     } catch {
-      setRoutines((curr) =>
-        curr.map((x) => (x.id === r.id ? { ...x, doneInPeriod: !next } : x)),
-      );
+      setRoutines((curr) => curr.map((x) => (x.id === r.id ? apply(x, !next) : x)));
     }
   }
 
@@ -280,6 +312,24 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
         </div>
       ) : null}
 
+      {overdueRoutines.length > 0 ? (
+        <section className="mb-12">
+          <h2 className="mb-4 font-display text-[18px] tracking-tight text-clay">
+            Atrasado
+          </h2>
+          <ol className="divide-y divide-edge">
+            {overdueRoutines.map((r) => (
+              <RoutineUpcomingRow
+                key={r.id}
+                routine={r}
+                occurrence={r.next!}
+                onToggle={() => toggleRoutineForPeriod(r, r.next!.period)}
+              />
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
       {routinesDueToday.length > 0 ? (
         <section className="mb-12">
           <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
@@ -287,7 +337,11 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
           </h2>
           <ol className="divide-y divide-edge">
             {routinesDueToday.map((r) => (
-              <RoutineRow key={r.id} routine={r} onToggle={() => toggleRoutine(r)} />
+              <RoutineRow
+                key={r.id}
+                routine={r}
+                onToggle={() => toggleRoutineForPeriod(r, r.currentPeriod)}
+              />
             ))}
           </ol>
         </section>
@@ -324,12 +378,20 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
         )}
       </section>
 
-      {upcomingOneShots.length > 0 ? (
+      {upcomingOneShots.length > 0 || upcomingRoutines.length > 0 ? (
         <section>
           <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
             Próximos
           </h2>
           <ol className="divide-y divide-edge">
+            {upcomingRoutines.map((r) => (
+              <RoutineUpcomingRow
+                key={r.id}
+                routine={r}
+                occurrence={r.next!}
+                onToggle={() => toggleRoutineForPeriod(r, r.next!.period)}
+              />
+            ))}
             {upcomingOneShots.map((item) => (
               <OneShotRow
                 key={item.reminder.id}
@@ -567,6 +629,16 @@ function TimeChip({
 
 function DateChip({ eventDate, eventDays }: { eventDate: string; eventDays: number }) {
   const [, m, d] = eventDate.split("-");
+  if (eventDays < 0) {
+    return (
+      <div className="tnum text-[15px] tracking-tight text-clay">
+        {d}/{m}
+        <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-clay">
+          atrasado {Math.abs(eventDays)}d
+        </div>
+      </div>
+    );
+  }
   if (eventDays === 0) {
     return (
       <div className="text-[11px] uppercase tracking-[0.16em] text-amber">hoje</div>
@@ -647,6 +719,51 @@ function CheckIcon() {
 function fmtTakenAt(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function RoutineUpcomingRow({
+  routine,
+  occurrence,
+  onToggle,
+}: {
+  routine: RoutineWithStatus;
+  occurrence: NonNullable<RoutineWithStatus["next"]>;
+  onToggle: () => void;
+}) {
+  const { date, daysAway, done, isOverdue } = occurrence;
+  return (
+    <li className="grid grid-cols-[64px_1fr_auto] items-center gap-4 py-5">
+      <DateChip eventDate={date} eventDays={daysAway} />
+      <div className="min-w-0">
+        <div
+          className={
+            "font-display text-[19px] leading-tight tracking-tight transition-all " +
+            (done
+              ? "text-ink-faint line-through decoration-edge-2"
+              : isOverdue
+                ? "text-clay"
+                : "text-ink")
+          }
+        >
+          {routine.title}
+        </div>
+        <div className="mt-0.5 text-[13px] text-ink-faint">{freqLabel(routine)}</div>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={done}
+        className="grid size-9 place-items-center rounded-full transition-colors text-paper"
+        style={{
+          border: "1.5px solid var(--color-edge-2)",
+          background: done ? "var(--color-ink)" : "transparent",
+          borderColor: done ? "var(--color-ink)" : "var(--color-edge-2)",
+        }}
+      >
+        {done ? <CheckIcon /> : null}
+      </button>
+    </li>
+  );
 }
 
 function RoutineRow({
