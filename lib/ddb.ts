@@ -309,64 +309,6 @@ export async function setConfig(sub: string, patch: Partial<Config>): Promise<Co
   return merged;
 }
 
-/**
- * @deprecated Use listRemindersForProfile across listProfilesForUser instead.
- * Kept for migration script compatibility.
- */
-export async function listReminders(sub: string): Promise<Reminder[]> {
-  const res = await doc.send(
-    new QueryCommand({
-      TableName: TABLE,
-      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
-      ExpressionAttributeValues: { ":pk": PK.user(sub), ":sk": "reminder#" },
-    }),
-  );
-  return (res.Items ?? []).map(stripKeys<Reminder>);
-}
-
-/**
- * @deprecated Use getReminderForProfile + findReminder walker instead.
- * Kept for migration script compatibility.
- */
-export async function getReminder(sub: string, id: string): Promise<Reminder | null> {
-  const res = await doc.send(
-    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.reminder(id) } }),
-  );
-  if (!res.Item) return null;
-  return stripKeys<Reminder>(res.Item);
-}
-
-export async function putReminder(sub: string, reminder: Reminder): Promise<Reminder> {
-  await doc.send(
-    new PutCommand({
-      TableName: TABLE,
-      Item: { pk: PK.user(sub), sk: SK.reminder(reminder.id), ...reminder },
-    }),
-  );
-  return reminder;
-}
-
-export async function setReminderStatus(
-  sub: string,
-  id: string,
-  status: ReminderStatus,
-): Promise<Reminder | null> {
-  const existing = await getReminder(sub, id);
-  if (!existing) return null;
-  const updated: Reminder = { ...existing, status };
-  await putReminder(sub, updated);
-  return updated;
-}
-
-export async function deleteReminder(sub: string, id: string): Promise<void> {
-  await doc.send(
-    new DeleteCommand({
-      TableName: TABLE,
-      Key: { pk: PK.user(sub), sk: SK.reminder(id) },
-    }),
-  );
-}
-
 export async function listActivities(sub: string, date: string): Promise<Activity[]> {
   const res = await doc.send(
     new QueryCommand({
@@ -460,44 +402,6 @@ export async function findOpenNap(
 ): Promise<NapActivity | null> {
   const open = await listOpenNaps(sub, tz);
   return open.find((n) => n.profileId === profileId) ?? null;
-}
-
-/**
- * @deprecated Use getLogForProfile across listProfilesForUser instead.
- * Kept for migration script compatibility.
- */
-export async function getLog(sub: string, date: string): Promise<DayLog> {
-  const res = await doc.send(
-    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(sub), sk: SK.log(date) } }),
-  );
-  if (!res.Item) return {};
-  const log = { ...(res.Item as Record<string, unknown>) };
-  delete log.pk;
-  delete log.sk;
-  return log as DayLog;
-}
-
-export async function setLogEntry(
-  sub: string,
-  date: string,
-  slotKey: string,
-  taken: boolean,
-): Promise<DayLog> {
-  const log = await getLog(sub, date);
-  if (taken) log[slotKey] = { taken: true, takenAt: Date.now() };
-  else delete log[slotKey];
-  await doc.send(
-    new PutCommand({
-      TableName: TABLE,
-      Item: {
-        pk: PK.user(sub),
-        sk: SK.log(date),
-        ...log,
-        ttl: Math.floor(Date.now() / 1000) + 60 * 24 * 60 * 60,
-      },
-    }),
-  );
-  return log;
 }
 
 export async function wasNotified(sub: string, date: string, slotKey: string): Promise<boolean> {

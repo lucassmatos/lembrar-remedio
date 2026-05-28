@@ -116,7 +116,7 @@ function CaregiverInviteForm({
 
   const canSubmit = selected.size > 0 && isValidEmail(email) && !busy;
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!canSubmit) return;
     setBusy(true);

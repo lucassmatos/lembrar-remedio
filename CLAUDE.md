@@ -47,8 +47,7 @@ Uma tabela, partições por prefixo de `pk`:
 - `chat#<chatId>` — mapeia chat Telegram → sub. `users` — índice de usuários.
 
 `stripKeys()` remove pk/sk antes de devolver. Helpers `*ForProfile` operam na
-partição do perfil; os antigos (`getLog`, `listReminders` por sub) estão
-`@deprecated` mas mantidos pra compatibilidade do script de migração.
+partição do perfil — são os únicos que o app vivo usa.
 
 ### Compartilhamento de perfis (`lib/sharing.ts`)
 
@@ -166,9 +165,9 @@ limpa as do perfil deletado.
 - **`/casa/entrar` (aceitar convite) não roda em dev-local** — é Server Component
   que usa `auth()` real do NextAuth; sem creds Google locais o `/api/auth/signin`
   dá 500. Funciona em prod. O resto do app usa `requireSession()` (com bypass dev).
-- **`tsc --noEmit` deixa ruído pré-existente:** um erro em `app/layout.tsx`
-  (import side-effect de `globals.css`) e warnings de `@deprecated` nos helpers
-  antigos do ddb. Filtra com `grep -v "globals.css"` ao checar erros reais.
+- **`tsc --noEmit` deixa um ruído pré-existente:** erro em `app/layout.tsx`
+  (import side-effect de `globals.css`). Filtra com `grep -v "globals.css"` ao
+  checar erros reais.
 - **Vitest usa alias `@/`** (configurado em `vitest.config.ts`) e exclui
   `.claude/worktrees/**` (worktrees Conductor paralelos têm testes próprios).
 - **`ItemCount` do DynamoDB é aproximado** (atualiza a cada ~6h) — não confie pra

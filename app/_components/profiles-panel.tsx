@@ -65,7 +65,7 @@ export function ProfilesPanel() {
     }
   }
 
-  async function create(e: React.FormEvent) {
+  async function create(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!newName.trim()) return setErr("dá um nome");
     setBusy(true);

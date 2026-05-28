@@ -25,7 +25,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
   // Group filter — only rendered when both mine and shared are non-empty
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("tudo");
 
-  async function create(e: React.FormEvent) {
+  async function create(e: React.SyntheticEvent) {
     e.preventDefault();
     setErr(null);
     if (!name.trim()) return setErr("dá um nome");

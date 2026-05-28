@@ -81,7 +81,7 @@ export function OneShotForm({
     );
   }
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.SyntheticEvent) {
     e.preventDefault();
     setErr(null);
     if (!title.trim()) {

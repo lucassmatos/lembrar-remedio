@@ -38,7 +38,7 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.SyntheticEvent) {
     e.preventDefault();
     setErr(null);
     if (!name.trim()) return setErr("Dá um nome pro medicamento.");

@@ -122,7 +122,7 @@ function ListsView({ lists, onOpen }: { lists: HouseList[]; onOpen: (l: HouseLis
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function create(e: React.FormEvent) {
+  async function create(e: React.SyntheticEvent) {
     e.preventDefault();
     if (busy || !title.trim()) return;
     setBusy(true);
@@ -231,7 +231,7 @@ function ListDetail({ list, onBack }: { list: HouseList; onBack: () => void }) {
   // Atualizações otimistas com setState funcional: NUNCA `setItems(items.map(...))`,
   // sempre `setItems(curr => curr.map(...))`. A versão com closure pega snapshot
   // velho e dois cliques rápidos revertem o que o anterior fez.
-  async function addLocal(e: React.FormEvent) {
+  async function addLocal(e: React.SyntheticEvent) {
     e.preventDefault();
     const t = text.trim();
     if (!t) return;
@@ -457,7 +457,7 @@ function NewRoutineForm({ onDone }: { onDone: () => void }) {
   const [time, setTime] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (busy || !title.trim()) return;
     setBusy(true);
@@ -721,7 +721,7 @@ function NewBirthdayForm({ onDone }: { onDone: () => void }) {
   const [month, setMonth] = useState<number>(1);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (busy || !name.trim()) return;
     setBusy(true);

@@ -286,7 +286,7 @@ export type BirthdayPost = z.infer<typeof BirthdayPostSchema>;
 
 export const PushSubscribeSchema = z
   .object({
-    endpoint: z.string().url().max(1000),
+    endpoint: z.url().max(1000),
     keys: z
       .object({
         p256dh: z.string().min(1).max(200),
@@ -298,7 +298,7 @@ export const PushSubscribeSchema = z
 export type PushSubscribe = z.infer<typeof PushSubscribeSchema>;
 
 export const PushUnsubscribeSchema = z
-  .object({ endpoint: z.string().url().max(1000) })
+  .object({ endpoint: z.url().max(1000) })
   .strict();
 
 export const LogPostSchema = z
