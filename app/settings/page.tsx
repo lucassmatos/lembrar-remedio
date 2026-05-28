@@ -172,11 +172,11 @@ export default function SettingsPage() {
               <div className="mt-3 space-y-3 text-[14px] leading-relaxed text-ink-soft">
                 <p>
                   <b>iPhone (Safari):</b> toque no botão de compartilhar, depois
-                  em "Adicionar à Tela de Início".
+                  em “Adicionar à Tela de Início”.
                 </p>
                 <p>
-                  <b>Android (Chrome):</b> menu de três pontos, "Instalar app"
-                  ou "Adicionar à tela inicial".
+                  <b>Android (Chrome):</b> menu de três pontos, “Instalar app”
+                  ou “Adicionar à tela inicial”.
                 </p>
                 <p>
                   <b>Desktop:</b> clique no ícone de instalar na barra de

@@ -128,7 +128,7 @@ export function TelegramPanel() {
           )}
         </div>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink-faint">
-          Lembretes chegam no Telegram. Toque em "✓ Tomei" ou "Pular" pra
+          Lembretes chegam no Telegram. Toque em “✓ Tomei” ou “Pular” pra
           marcar — sincroniza com o app na hora.
         </p>
         <div className="mt-3 flex items-center gap-3">

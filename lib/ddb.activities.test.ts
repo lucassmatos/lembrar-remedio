@@ -23,14 +23,18 @@ import type { FeedActivity, NapActivity, Reminder } from "./types";
 const SUB = "u1";
 const TZ = "America/Sao_Paulo";
 
+// Fixtures usam a data de hoje no TZ pra não ficarem stale conforme o calendário
+// avança (findOpenNap/listOpenNaps só olham hoje + ontem).
+const TODAY = nowInTz(TZ).date;
+
 function nap(over: Partial<NapActivity> = {}): NapActivity {
   return {
     id: "n1",
     type: "nap",
     profileId: "p1",
-    date: "2026-05-24",
+    date: TODAY,
     createdAt: 1,
-    startedAt: Date.parse("2026-05-24T14:00:00Z"),
+    startedAt: Date.parse(`${TODAY}T14:00:00Z`),
     ...over,
   };
 }
@@ -39,10 +43,10 @@ function feed(over: Partial<FeedActivity> = {}): FeedActivity {
     id: "f1",
     type: "feed",
     profileId: "p1",
-    date: "2026-05-24",
+    date: TODAY,
     createdAt: 1,
     side: "left",
-    at: Date.parse("2026-05-24T15:00:00Z"),
+    at: Date.parse(`${TODAY}T15:00:00Z`),
     ...over,
   };
 }
@@ -52,29 +56,29 @@ beforeEach(() => _resetDevStore());
 describe("activity CRUD", () => {
   it("put + list por dia retorna o item", async () => {
     await putActivity(SUB, nap());
-    const list = await listActivities(SUB, "2026-05-24");
+    const list = await listActivities(SUB, TODAY);
     expect(list.map((a) => a.id)).toEqual(["n1"]);
   });
 
   it("list filtra pelo bucket do dia", async () => {
     await putActivity(SUB, nap({ id: "today" }));
     await putActivity(SUB, nap({ id: "other", date: "2026-05-23" }));
-    const list = await listActivities(SUB, "2026-05-24");
+    const list = await listActivities(SUB, TODAY);
     expect(list.map((a) => a.id)).toEqual(["today"]);
   });
 
   it("ordena cronologicamente (soneca por startedAt, mamada por at)", async () => {
-    await putActivity(SUB, feed({ id: "f", at: Date.parse("2026-05-24T16:00:00Z") }));
-    await putActivity(SUB, nap({ id: "n", startedAt: Date.parse("2026-05-24T09:00:00Z") }));
-    const list = await listActivities(SUB, "2026-05-24");
+    await putActivity(SUB, feed({ id: "f", at: Date.parse(`${TODAY}T16:00:00Z`) }));
+    await putActivity(SUB, nap({ id: "n", startedAt: Date.parse(`${TODAY}T09:00:00Z`) }));
+    const list = await listActivities(SUB, TODAY);
     expect(list.map((a) => a.id)).toEqual(["n", "f"]);
   });
 
   it("get + delete roundtrip", async () => {
     await putActivity(SUB, nap());
-    expect((await getActivity(SUB, "2026-05-24", "n1"))?.id).toBe("n1");
-    await deleteActivity(SUB, "2026-05-24", "n1");
-    expect(await getActivity(SUB, "2026-05-24", "n1")).toBeNull();
+    expect((await getActivity(SUB, TODAY, "n1"))?.id).toBe("n1");
+    await deleteActivity(SUB, TODAY, "n1");
+    expect(await getActivity(SUB, TODAY, "n1")).toBeNull();
   });
 });
 

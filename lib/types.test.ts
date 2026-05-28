@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  isMedication,
-  isOneShot,
   isCaregiver,
   isPartner,
   type Profile,

@@ -112,8 +112,8 @@ export function PushOptIn() {
 
       {iosHint && state !== "subscribed" ? (
         <p className="mt-3 text-[13px] leading-relaxed text-ink-faint">
-          <b>iPhone:</b> primeiro toque em compartilhar e "Adicionar à Tela de
-          Início". Depois abra o app pela tela inicial e ative aqui (o iOS só
+          <b>iPhone:</b> primeiro toque em compartilhar e “Adicionar à Tela de
+          Início”. Depois abra o app pela tela inicial e ative aqui (o iOS só
           permite push em apps instalados).
         </p>
       ) : null}

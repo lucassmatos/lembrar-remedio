@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@/auth";
 import { peekGenericToken } from "@/lib/ddb";
 import { AcceptForm } from "./_accept-form";
@@ -92,12 +93,12 @@ function ErrorPage({ message }: { message: string }) {
       <p className="mt-10 font-display text-[26px] leading-snug tracking-tight text-ink">
         {message}
       </p>
-      <a
+      <Link
         href="/"
         className="mt-6 text-[13px] text-ink-soft underline decoration-edge-2 underline-offset-4 hover:text-ink"
       >
         voltar ao inicio
-      </a>
+      </Link>
     </div>
   );
 }

@@ -74,7 +74,7 @@ export default function TimelinePage() {
       off5();
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
+  }, [router]);
 
   const localDate = date ? new Date(date + "T12:00:00") : null;
   const dayWord = localDate ? WEEKDAY[localDate.getDay()] : " ";

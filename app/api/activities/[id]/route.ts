@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const tz = (await getConfig(s.sub)).timezone;
-  let updated: Activity = { ...existing };
+  const updated: Activity = { ...existing };
 
   if (updated.type === "nap") {
     if (body.startedAt !== undefined) updated.startedAt = body.startedAt;

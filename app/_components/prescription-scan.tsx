@@ -215,6 +215,7 @@ export function PrescriptionScan({ profileId }: { profileId?: string }) {
         <div className="enter">
           <div className="flex items-center gap-4 pb-5">
             {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element -- blob URL preview, next/image não ajuda
               <img
                 src={preview}
                 alt="receita"
