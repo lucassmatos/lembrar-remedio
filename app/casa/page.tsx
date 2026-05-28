@@ -530,15 +530,18 @@ function NewRoutineForm({ onDone }: { onDone: () => void }) {
       {freq !== "daily" ? (
         <Field label={freq === "monthly" ? "dia do mês" : "dia da semana"}>
           {freq === "monthly" ? (
-            <input
-              type="number"
-              min={1}
-              max={31}
+            <select
               value={anchor}
-              onChange={(e) => setAnchor(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
+              onChange={(e) => setAnchor(Number(e.target.value))}
               className={"tnum " + inputCls}
               style={{ border: "1px solid var(--color-edge-2)" }}
-            />
+            >
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
           ) : (
             <select
               value={anchor}
@@ -755,15 +758,18 @@ function NewBirthdayForm({ onDone }: { onDone: () => void }) {
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="dia">
-          <input
-            type="number"
-            min={1}
-            max={31}
+          <select
             value={day}
-            onChange={(e) => setDay(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
+            onChange={(e) => setDay(Number(e.target.value))}
             className={"tnum " + inputCls}
             style={{ border: "1px solid var(--color-edge-2)" }}
-          />
+          >
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="mês">
           <select
