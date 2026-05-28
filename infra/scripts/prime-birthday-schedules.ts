@@ -67,8 +67,15 @@ async function main() {
     if (DRY) {
       console.log(`[${sub}] would re-put config (tz=${cfg.timezone}) to trigger schedule-sync`);
     } else {
-      await doc.send(new PutCommand({ TableName: TABLE, Item: cfg }));
-      console.log(`[${sub}] re-put config → schedule-sync vai criar lr-birthdays-${sub}`);
+      // Force a real change (touch field) — PutItem idêntico pode não emitir
+      // evento de stream. Esse field é inofensivo (não é lido por nada).
+      await doc.send(
+        new PutCommand({
+          TableName: TABLE,
+          Item: { ...cfg, _scheduleSyncTouchedAt: Date.now() },
+        }),
+      );
+      console.log(`[${sub}] re-put config (touched) → schedule-sync vai criar lr-birthdays-${sub}`);
       touched++;
     }
   }
