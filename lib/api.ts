@@ -389,15 +389,12 @@ export type BirthdayWithStatus = Birthday & {
   nextDate: string;
   /** Dias até a próxima ocorrência (0 = hoje). */
   daysAway: number;
-  /** Idade que fará na próxima ocorrência, se year foi dado. */
-  age?: number;
 };
 
 export type BirthdayInput = {
   name: string;
   month: number;
   day: number;
-  year?: number;
 };
 
 export async function getBirthdays(): Promise<BirthdayWithStatus[]> {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { birthdaysForHousehold, getConfig, putBirthday } from "@/lib/ddb";
-import { ageAtNextBirthday, daysUntilBirthday, nextBirthdayDate } from "@/lib/birthdays";
+import { daysUntilBirthday, nextBirthdayDate } from "@/lib/birthdays";
 import { requireSession } from "@/lib/session";
 import type { Birthday } from "@/lib/types";
 import { BirthdayPostSchema, parseBody } from "@/lib/validation";
@@ -20,7 +20,6 @@ export async function GET() {
       ...b,
       nextDate: nextBirthdayDate(b, now, tz),
       daysAway: daysUntilBirthday(b, now, tz),
-      age: ageAtNextBirthday(b, now, tz),
     }))
     .sort((a, b) => a.daysAway - b.daysAway);
   return NextResponse.json({ birthdays: enriched });
@@ -38,7 +37,6 @@ export async function POST(req: NextRequest) {
     name: body.name.trim(),
     month: body.month,
     day: body.day,
-    ...(body.year != null ? { year: body.year } : {}),
     createdAt: Date.now(),
   };
   await putBirthday(s.sub, b);

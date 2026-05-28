@@ -23,14 +23,6 @@ export function daysUntilBirthday(b: Birthday, atMs: number, tz: string): number
   return daysBetween(today, nextBirthdayDate(b, atMs, tz));
 }
 
-/** Idade que a pessoa fará na próxima ocorrência, se o ano foi dado. */
-export function ageAtNextBirthday(b: Birthday, atMs: number, tz: string): number | undefined {
-  if (b.year == null) return undefined;
-  const next = nextBirthdayDate(b, atMs, tz);
-  const targetYear = Number(next.slice(0, 4));
-  return targetYear - b.year;
-}
-
 /** É hoje? Mesmo MM-DD que hoje no tz. */
 export function isBirthdayToday(b: Birthday, atMs: number, tz: string): boolean {
   const { date: today } = dateInTz(atMs, tz);

@@ -12,12 +12,7 @@ import {
   putBirthday,
   setPartner,
 } from "./ddb";
-import {
-  ageAtNextBirthday,
-  daysUntilBirthday,
-  isBirthdayToday,
-  nextBirthdayDate,
-} from "./birthdays";
+import { daysUntilBirthday, isBirthdayToday, nextBirthdayDate } from "./birthdays";
 import { _resetDevStore } from "./dev-store";
 import type { Birthday } from "./types";
 
@@ -34,7 +29,6 @@ function bday(over: Partial<Birthday> = {}): Birthday {
     name: "Pri",
     month: 6,
     day: 15,
-    year: 1989,
     createdAt: 1,
     ...over,
   };
@@ -71,19 +65,6 @@ describe("daysUntilBirthday", () => {
   });
   it("18 dias até 15/6", () => {
     expect(daysUntilBirthday(bday({ month: 6, day: 15 }), MAY_28, TZ)).toBe(18);
-  });
-});
-
-describe("ageAtNextBirthday", () => {
-  it("calcula idade quando ano dado", () => {
-    // 15/6/2026 - 1989 = 37 anos
-    expect(ageAtNextBirthday(bday({ year: 1989, month: 6, day: 15 }), MAY_28, TZ)).toBe(37);
-  });
-  it("undefined sem year", () => {
-    expect(ageAtNextBirthday(bday({ year: undefined }), MAY_28, TZ)).toBeUndefined();
-  });
-  it("considera ano que vem (5/5 já passou em 2026, faz idade em 2027)", () => {
-    expect(ageAtNextBirthday(bday({ year: 1990, month: 5, day: 5 }), MAY_28, TZ)).toBe(37);
   });
 });
 

@@ -785,7 +785,6 @@ function fmtTakenAt(ts: number): string {
 }
 
 function BirthdayRow({ birthday }: { birthday: BirthdayWithStatus }) {
-  const isToday = birthday.daysAway === 0;
   return (
     <li className="grid grid-cols-[64px_1fr_auto] items-center gap-4 py-5">
       <DateChip eventDate={birthday.nextDate} eventDays={birthday.daysAway} />
@@ -798,11 +797,6 @@ function BirthdayRow({ birthday }: { birthday: BirthdayWithStatus }) {
             style={{ color: "var(--color-violet)" }}
           />
           <span className="truncate">{birthday.name}</span>
-        </div>
-        <div className="mt-0.5 text-[13px] text-ink-faint">
-          {birthday.age != null
-            ? `${isToday ? "faz" : "vai fazer"} ${birthday.age} ano${birthday.age === 1 ? "" : "s"}`
-            : "aniversário"}
         </div>
       </div>
       <span />

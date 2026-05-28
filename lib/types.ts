@@ -111,7 +111,7 @@ export type RoutineDone = {
 /**
  * Aniversário da casa. Dado compartilhado entre parceiros (mesmo padrão das
  * rotinas/listas, descoberta via getPartner). Não tem perfilId — é da casa,
- * não da pessoa cuidada. Year é opcional pra calcular idade quando dado.
+ * não da pessoa cuidada. Só nome + dia/mês: idade não interessa, reminder.
  * Sk: birthday#<id>.
  */
 export type Birthday = {
@@ -120,7 +120,6 @@ export type Birthday = {
   name: string;
   month: number; // 1-12
   day: number;   // 1-31
-  year?: number; // opcional, pra calcular idade
   createdAt: number;
 };
 

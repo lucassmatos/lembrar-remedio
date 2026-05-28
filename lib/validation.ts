@@ -267,13 +267,11 @@ export const RoutineDonePostSchema = z
 export type RoutineDonePost = z.infer<typeof RoutineDonePostSchema>;
 
 // ── Aniversários da casa ─────────────────────────────────────────────────────
-const CURRENT_YEAR = new Date().getUTCFullYear();
 export const BirthdayPostSchema = z
   .object({
     name: z.string().min(1).max(80),
     month: z.number().int().min(1).max(12),
     day: z.number().int().min(1).max(31),
-    year: z.number().int().min(1900).max(CURRENT_YEAR + 1).optional(),
   })
   .strict()
   .refine(

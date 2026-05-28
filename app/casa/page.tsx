@@ -623,11 +623,10 @@ const MONTH_NAMES = [
 
 function dateHint(b: BirthdayWithStatus): string {
   const dm = `${String(b.day).padStart(2, "0")}/${String(b.month).padStart(2, "0")}`;
-  const age = b.age != null ? ` · faz ${b.age}` : "";
-  if (b.daysAway === 0) return `hoje! · ${dm}${age}`;
-  if (b.daysAway === 1) return `amanhã · ${dm}${age}`;
-  if (b.daysAway <= 30) return `em ${b.daysAway}d · ${dm}${age}`;
-  return `${dm}${age}`;
+  if (b.daysAway === 0) return `hoje! · ${dm}`;
+  if (b.daysAway === 1) return `amanhã · ${dm}`;
+  if (b.daysAway <= 30) return `em ${b.daysAway}d · ${dm}`;
+  return dm;
 }
 
 function BirthdaysView({
@@ -717,19 +716,13 @@ function NewBirthdayForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [day, setDay] = useState<number>(1);
   const [month, setMonth] = useState<number>(1);
-  const [year, setYear] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy || !name.trim()) return;
     setBusy(true);
-    const input: BirthdayInput = {
-      name: name.trim(),
-      day,
-      month,
-      ...(year ? { year: Number(year) } : {}),
-    };
+    const input: BirthdayInput = { name: name.trim(), day, month };
     try {
       await createBirthday(input);
       onDone();
@@ -787,19 +780,6 @@ function NewBirthdayForm({ onDone }: { onDone: () => void }) {
           </select>
         </Field>
       </div>
-
-      <Field label="ano (opcional)" hint="vazio = não calcula idade">
-        <input
-          type="number"
-          min={1900}
-          max={new Date().getUTCFullYear()}
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-          placeholder="ex.: 1989"
-          className={"tnum " + inputCls}
-          style={{ border: "1px solid var(--color-edge-2)" }}
-        />
-      </Field>
 
       <div className="flex items-center gap-3 pt-1 text-[14px]">
         <button
