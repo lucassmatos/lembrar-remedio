@@ -88,7 +88,9 @@ describe("completão: casal + filho + babá", () => {
     await putReminderForProfile(reminder);
 
     // --- Maria pareia Telegram e aceita o convite de parceira ---
-    await setConfig(MARIA, { chatId: 200, timezone: "UTC", name: "Maria" });
+    // notifyProfileIds: por padrão só a própria pessoa, então Maria (parceira,
+    // não dona do Filho) precisa optar por receber as notificações dele.
+    await setConfig(MARIA, { chatId: 200, timezone: "UTC", name: "Maria", notifyProfileIds: [PROFILE] });
     const partnerToken = "tok-partner";
     const partnerPayload: InvitePayload = {
       ownerSub: LUCAS,

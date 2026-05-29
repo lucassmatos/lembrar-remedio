@@ -105,7 +105,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
     return (
       <div className="mb-8">
         <p className="mb-3 text-[12px] uppercase tracking-[0.16em] text-ink-faint">pessoas</p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {allowAll ? (
             <Chip
               active={selected === "all"}
@@ -122,8 +122,8 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
               label={p.name}
             />
           ))}
-          {addPersonButton}
         </div>
+        <div className="mt-2">{addPersonButton}</div>
         {err ? (
           <p className="mt-2 text-[13px]" style={{ color: "var(--color-clay)" }}>
             {err}
@@ -185,7 +185,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
 
       {/* allowAll "todos pessoas" chip — stays at the very top, before groups */}
       {allowAll ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Chip
             active={selected === "all"}
             onClick={() => onSelect("all")}
@@ -199,7 +199,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
         <div className={showShared ? "mb-5" : ""}>
           {/* Group label only shown in grouped mode */}
           <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">meus</p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {mine.map((p) => (
               <Chip
                 key={p.id}
@@ -209,9 +209,9 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
                 label={p.name}
               />
             ))}
-            {/* add-person form lives in the meus group (creates an owned profile) */}
-            {addPersonButton}
           </div>
+          {/* add-person form lives in the meus group (creates an owned profile) */}
+          <div className="mt-2">{addPersonButton}</div>
         </div>
       ) : null}
 
@@ -221,7 +221,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
           <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">
             {sharedGroupLabel}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {shared.map((p) => (
               <Chip
                 key={p.id}
@@ -231,9 +231,9 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
                 label={p.name}
               />
             ))}
-            {/* caregiver with no owned profiles: add-person creates their first owned profile */}
-            {mine.length === 0 ? addPersonButton : null}
           </div>
+          {/* caregiver with no owned profiles: add-person creates their first owned profile */}
+          {mine.length === 0 ? <div className="mt-2">{addPersonButton}</div> : null}
         </div>
       ) : null}
 
@@ -267,7 +267,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={
-        "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[14px] transition-all " +
+        "flex w-full items-center gap-2 rounded-full px-3.5 py-1.5 text-[14px] transition-all " +
         (active ? "text-paper" : "text-ink-soft hover:text-ink")
       }
       style={
@@ -278,11 +278,11 @@ function Chip({
     >
       {!active && color ? (
         <span
-          className="inline-block size-2 rounded-full"
+          className="inline-block size-2 shrink-0 rounded-full"
           style={{ background: color }}
         />
       ) : null}
-      {label}
+      <span className="min-w-0 truncate">{label}</span>
     </button>
   );
 }

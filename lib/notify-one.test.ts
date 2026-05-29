@@ -148,7 +148,8 @@ describe("notifyOneDose — med-slot", () => {
     });
     await seedReminder(PROFILE_ID, { id: REMINDER_ID });
     await setConfig(OWNER_SUB, { timezone: TZ, chatId: 1001 });
-    await setConfig(VIEWER_SUB, { timezone: TZ, chatId: 2002 });
+    // Caregiver precisa optar por receber notificações deste perfil.
+    await setConfig(VIEWER_SUB, { timezone: TZ, chatId: 2002, notifyProfileIds: [PROFILE_ID] });
 
     const result = await notifyOneDose({
       profileId: PROFILE_ID,
@@ -161,6 +162,49 @@ describe("notifyOneDose — med-slot", () => {
     expect(sendMessage).toHaveBeenCalledTimes(2);
     const chatIds = vi.mocked(sendMessage).mock.calls.map((c) => c[0].chatId).sort();
     expect(chatIds).toEqual([1001, 2002]);
+  });
+
+  it("by default a caregiver does NOT receive a shared profile's dose (só a própria pessoa)", async () => {
+    await seedProfile({
+      ownerSub: OWNER_SUB,
+      profileId: PROFILE_ID,
+      name: "Família",
+      sharedWith: [{ sub: VIEWER_SUB, role: "caregiver" }],
+    });
+    await seedReminder(PROFILE_ID, { id: REMINDER_ID });
+    await setConfig(OWNER_SUB, { timezone: TZ, chatId: 1001 });
+    // Caregiver tem Telegram mas NÃO optou por este perfil → não recebe.
+    await setConfig(VIEWER_SUB, { timezone: TZ, chatId: 2002 });
+
+    const result = await notifyOneDose({
+      profileId: PROFILE_ID,
+      ownerSub: OWNER_SUB,
+      reminderId: REMINDER_ID,
+      time: "08:00",
+    });
+
+    expect(result).toMatchObject({ sent: true });
+    // Só o dono recebe.
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ chatId: 1001 }));
+  });
+
+  it("owner who opted OUT of their own profile receives nothing (claim still won)", async () => {
+    await seedProfile({ ownerSub: OWNER_SUB, profileId: PROFILE_ID, name: "Família" });
+    await seedReminder(PROFILE_ID, { id: REMINDER_ID });
+    // Lista explícita sem o próprio perfil = silencia.
+    await setConfig(OWNER_SUB, { timezone: TZ, chatId: 1001, notifyProfileIds: [] });
+
+    const result = await notifyOneDose({
+      profileId: PROFILE_ID,
+      ownerSub: OWNER_SUB,
+      reminderId: REMINDER_ID,
+      time: "08:00",
+    });
+
+    // Claim won (dose handled per preference), but nobody messaged.
+    expect(result).toMatchObject({ sent: true, key: `${REMINDER_ID}@08:00` });
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it("releases the claim + returns failure when EVERY send fails (so a retry re-sends)", async () => {
@@ -196,7 +240,7 @@ describe("notifyOneDose — med-slot", () => {
     });
     await seedReminder(PROFILE_ID, { id: REMINDER_ID });
     await setConfig(OWNER_SUB, { timezone: TZ, chatId: 1001 });
-    await setConfig(VIEWER_SUB, { timezone: TZ, chatId: 2002 });
+    await setConfig(VIEWER_SUB, { timezone: TZ, chatId: 2002, notifyProfileIds: [PROFILE_ID] });
     vi.mocked(sendMessage)
       .mockResolvedValueOnce({ message_id: 42 })
       .mockRejectedValueOnce(new Error("bot blocked by viewer"));
@@ -291,7 +335,7 @@ describe("notifyOneDose — med-slot", () => {
     });
     await seedReminder(PROFILE_ID, { id: REMINDER_ID });
     await setConfig(OWNER_SUB, { timezone: TZ, chatId: 1001 });
-    await setConfig(VIEWER_SUB, { timezone: TZ, chatId: 2002 });
+    await setConfig(VIEWER_SUB, { timezone: TZ, chatId: 2002, notifyProfileIds: [PROFILE_ID] });
 
     // sendMessage returns message_id: 42 for all calls (mock default).
     await notifyOneDose({

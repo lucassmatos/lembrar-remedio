@@ -17,6 +17,7 @@ import {
 } from "./schedule";
 import { editMessage, escapeHtml, sendMessage } from "./telegram";
 import { parseMessageKey, sanitizeMessageKey } from "./profile-keys";
+import { memberWantsProfileNotifications } from "./notify-prefs";
 import type { Reminder } from "./types";
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 
@@ -131,6 +132,7 @@ type PushMsg = { title: string; body: string; url: string };
 
 async function fanOutAndClaim(
   profileId: string,
+  ownerSub: string,
   date: string,
   key: string,
   memberSubs: string[],
@@ -143,6 +145,10 @@ async function fanOutAndClaim(
 
   for (const memberSub of memberSubs) {
     const cfg = await getConfig(memberSub);
+    // Respeita a preferência do destinatário: por padrão só o dono recebe.
+    if (!memberWantsProfileNotifications(cfg.notifyProfileIds, profileId, memberSub === ownerSub)) {
+      continue;
+    }
     const subs = await listPushSubs(memberSub);
     const hasTelegram = !!cfg.chatId;
     if (!hasTelegram && subs.length === 0) continue;
@@ -226,7 +232,7 @@ async function sendMedSlot(
   if (reminder.kind !== "medication") {
     return { sent: false, reason: "kind mismatch" };
   }
-  const { profileId, time } = input;
+  const { profileId, ownerSub, time } = input;
   const key = slotKey(reminder.id, time);
 
   // Check if already taken.
@@ -252,6 +258,7 @@ async function sendMedSlot(
 
   return fanOutAndClaim(
     profileId,
+    ownerSub,
     date,
     key,
     memberSubs,
@@ -282,7 +289,7 @@ async function sendOneShot(
     return { sent: false, reason: "stale schedule (date changed)" };
   }
 
-  const { profileId } = input;
+  const { profileId, ownerSub } = input;
   const status = reminder.status ?? "unscheduled";
   // Don't fire post-lead while still unscheduled, or pre-lead while scheduled.
   const isPreLead = (reminder.preLeadDays ?? []).includes(input.lead);
@@ -316,6 +323,7 @@ async function sendOneShot(
 
   return fanOutAndClaim(
     profileId,
+    ownerSub,
     date,
     key,
     memberSubs,

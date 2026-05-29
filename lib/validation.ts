@@ -74,6 +74,8 @@ export const ConfigPatchSchema = z
   .object({
     timezone: TimezoneSchema.optional(),
     startScreen: z.enum(["timeline", "diario"]).optional(),
+    // De quais perfis o usuário quer receber notificação. Lista vazia = nenhum.
+    notifyProfileIds: z.array(z.string().min(1).max(128)).max(200).optional(),
   })
   .strict();
 export type ConfigPatch = z.infer<typeof ConfigPatchSchema>;
