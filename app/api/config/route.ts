@@ -25,11 +25,12 @@ export async function PATCH(req: NextRequest) {
   if (!s.ok) return s.response;
   const parsed = await parseBody(req, ConfigPatchSchema);
   if (!parsed.ok) return parsed.response;
-  // Only timezone + startScreen are client-settable. chatId is set by the
-  // Telegram webhook after consuming a pair token — never accepted here.
+  // Only timezone + startScreen + notifyProfileIds are client-settable. chatId
+  // is set by the Telegram webhook after consuming a pair token — never here.
   const patch: Partial<Config> = {};
   if (parsed.data.timezone !== undefined) patch.timezone = parsed.data.timezone;
   if (parsed.data.startScreen !== undefined) patch.startScreen = parsed.data.startScreen;
+  if (parsed.data.notifyProfileIds !== undefined) patch.notifyProfileIds = parsed.data.notifyProfileIds;
   const cfg = await setConfig(s.sub, patch);
   return NextResponse.json({ config: stripInternal(cfg) });
 }

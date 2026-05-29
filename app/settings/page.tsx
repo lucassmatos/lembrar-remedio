@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { Shell } from "../_components/shell";
 import { TelegramPanel } from "../_components/telegram-panel";
 import { PushOptIn } from "../_components/push-opt-in";
+import { NotifyProfilesPanel } from "../_components/notify-profiles-panel";
 import { ProfilesPanel } from "../_components/profiles-panel";
 import { SharingPanel } from "../_components/sharing-panel";
 import { getConfig, setConfig as apiSetConfig } from "@/lib/api";
@@ -154,6 +155,10 @@ export default function SettingsPage() {
 
           <Section label="notificações no app">
             <PushOptIn />
+          </Section>
+
+          <Section label="de quem você recebe">
+            <NotifyProfilesPanel />
           </Section>
 
           <Section label="telegram">

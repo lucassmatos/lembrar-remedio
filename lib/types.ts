@@ -178,6 +178,14 @@ export type Config = {
   name?: string;
   /** Tela inicial preferida ao abrir o app. Default: timeline. */
   startScreen?: "timeline" | "diario";
+  /**
+   * De quais perfis este usuário quer receber notificação de dose. É uma
+   * preferência do destinatário (não do dono do perfil): cada membro decide,
+   * por perfil, se quer ser avisado. `undefined` = nunca configurado → cai no
+   * default "só a própria pessoa" (recebe apenas dos perfis que ele mesmo é
+   * dono). Lista vazia = silencia tudo. Ver `lib/notify-prefs.ts`.
+   */
+  notifyProfileIds?: string[];
   createdAt?: number;
 };
 
