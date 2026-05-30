@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ProfileWithAccess } from "@/lib/api";
 import { addProfile } from "@/lib/api";
-import { profileFill } from "@/lib/profile-ui";
+import { profileFill, firstName } from "@/lib/profile-ui";
 
 type Props = {
   profiles: ProfileWithAccess[];
@@ -105,7 +105,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
     return (
       <div className="mb-8">
         <p className="mb-3 text-[12px] uppercase tracking-[0.16em] text-ink-faint">pessoas</p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2">
           {allowAll ? (
             <Chip
               active={selected === "all"}
@@ -119,7 +119,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
               active={selected === p.id}
               color={profileFill(p.color)}
               onClick={() => onSelect(p.id)}
-              label={p.name}
+              label={firstName(p.name)}
             />
           ))}
         </div>
@@ -185,7 +185,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
 
       {/* allowAll "todos pessoas" chip — stays at the very top, before groups */}
       {allowAll ? (
-        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="mb-3 grid grid-cols-3 gap-2">
           <Chip
             active={selected === "all"}
             onClick={() => onSelect("all")}
@@ -199,7 +199,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
         <div className={showShared ? "mb-5" : ""}>
           {/* Group label only shown in grouped mode */}
           <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">meus</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             {mine.map((p) => (
               <Chip
                 key={p.id}
@@ -221,7 +221,7 @@ export function ProfileBar({ profiles, selected, onSelect, allowAll = false }: P
           <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-faint">
             {sharedGroupLabel}
           </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             {shared.map((p) => (
               <Chip
                 key={p.id}
