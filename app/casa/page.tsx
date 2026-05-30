@@ -93,9 +93,9 @@ export default function CasaPage() {
     };
   }, []);
 
-  // Sem h1 dedicado: a página tem duas seções (Rotinas + Listas) cada uma com
-  // seu serif h2 — um h1 "Casa" no topo vira ruído e o velho "Recados" não
-  // descreve mais o que mora aqui. Kicker só, single source of truth.
+  // Sem h1 dedicado: a página é um stack de accordions (Listas, Rotinas,
+  // Aniversários), cada um com seu serif h2 no header colapsável — um h1 "Casa"
+  // no topo vira ruído. Kicker só, single source of truth.
   const header = (
     <section className="mb-8">
       <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">casa</p>
@@ -107,13 +107,72 @@ export default function CasaPage() {
       {!mounted ? null : open ? (
         <ListDetail list={open} onBack={() => setOpen(null)} />
       ) : (
-        <>
-          <RoutinesView routines={routines} setRoutines={setRoutines} />
-          <BirthdaysView birthdays={birthdays} setBirthdays={setBirthdays} />
-          <ListsView lists={lists} onOpen={setOpen} />
-        </>
+        <div className="space-y-3">
+          <Accordion title="Listas" count={lists.length}>
+            <ListsView lists={lists} onOpen={setOpen} />
+          </Accordion>
+          <Accordion title="Rotinas" count={routines.length}>
+            <RoutinesView routines={routines} setRoutines={setRoutines} />
+          </Accordion>
+          <Accordion title="Aniversários" count={birthdays.length}>
+            <BirthdaysView birthdays={birthdays} setBirthdays={setBirthdays} />
+          </Accordion>
+        </div>
       )}
     </Shell>
+  );
+}
+
+/**
+ * Seção colapsável da Casa. Colapsada por padrão — o usuário só expande o que
+ * quer ver. O header (título + contagem + chevron) é o botão de toggle.
+ */
+function Accordion({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-4 border-b border-edge py-3 text-left transition-colors hover:opacity-80"
+      >
+        <h2 className="font-display text-[24px] leading-none tracking-tight text-ink">
+          {title}
+          {count > 0 ? (
+            <span className="ml-2 align-middle text-[15px] text-ink-faint tabular-nums">
+              {count}
+            </span>
+          ) : null}
+        </h2>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden
+          className="shrink-0 text-ink-faint transition-transform duration-200"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        >
+          <path
+            d="M4 6 8 10l4-4"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      {open ? <div className="pb-2 pt-4 enter">{children}</div> : null}
+    </section>
   );
 }
 
@@ -137,10 +196,9 @@ function ListsView({ lists, onOpen }: { lists: HouseList[]; onOpen: (l: HouseLis
   }
 
   return (
-    <section>
-      <div className="mb-3 flex items-center justify-between gap-4 border-b border-edge pb-3">
-        <h2 className="font-display text-[24px] leading-none tracking-tight text-ink">Listas</h2>
-        {!adding ? (
+    <div>
+      {!adding ? (
+        <div className="mb-3 flex justify-end">
           <button
             type="button"
             onClick={() => setAdding(true)}
@@ -149,8 +207,8 @@ function ListsView({ lists, onOpen }: { lists: HouseList[]; onOpen: (l: HouseLis
           >
             + nova lista
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {adding ? (
         <form onSubmit={create} className="mb-4 flex items-center gap-2">
@@ -201,7 +259,7 @@ function ListsView({ lists, onOpen }: { lists: HouseList[]; onOpen: (l: HouseLis
           ))}
         </ul>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -368,10 +426,9 @@ function RoutinesView({
   }
 
   return (
-    <section className="mb-10">
-      <div className="mb-3 flex items-center justify-between gap-4 border-b border-edge pb-3">
-        <h2 className="font-display text-[24px] leading-none tracking-tight text-ink">Rotinas</h2>
-        {!adding ? (
+    <div>
+      {!adding ? (
+        <div className="mb-3 flex justify-end">
           <button
             type="button"
             onClick={() => setAdding(true)}
@@ -380,8 +437,8 @@ function RoutinesView({
           >
             + nova rotina
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {adding ? <NewRoutineForm onDone={() => setAdding(false)} /> : null}
 
@@ -446,7 +503,7 @@ function RoutinesView({
           ))}
         </ul>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -652,12 +709,9 @@ function BirthdaysView({
   }
 
   return (
-    <section className="mb-10">
-      <div className="mb-3 flex items-center justify-between gap-4 border-b border-edge pb-3">
-        <h2 className="font-display text-[24px] leading-none tracking-tight text-ink">
-          Aniversários
-        </h2>
-        {!adding ? (
+    <div>
+      {!adding ? (
+        <div className="mb-3 flex justify-end">
           <button
             type="button"
             onClick={() => setAdding(true)}
@@ -666,8 +720,8 @@ function BirthdaysView({
           >
             + novo
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {adding ? <NewBirthdayForm onDone={() => setAdding(false)} /> : null}
 
@@ -711,7 +765,7 @@ function BirthdaysView({
           ))}
         </ul>
       )}
-    </section>
+    </div>
   );
 }
 
