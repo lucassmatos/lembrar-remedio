@@ -9,7 +9,7 @@ import {
   type ProfileWithAccess,
 } from "@/lib/api";
 import { initialNotifyProfileIds } from "@/lib/notify-prefs";
-import { profileFill } from "@/lib/profile-ui";
+import { profileFill, firstName } from "@/lib/profile-ui";
 
 function isOwner(p: ProfileWithAccess): boolean {
   return (p.accessRole ?? "owner") === "owner";
@@ -76,7 +76,7 @@ export function NotifyProfilesPanel() {
         Escolha de quem você quer receber os lembretes (Telegram e app). Por
         padrão, só das suas próprias pessoas.
       </p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2">
         {profiles.map((p) => {
           const active = selected.has(p.id);
           const color = profileFill(p.color);
@@ -102,7 +102,7 @@ export function NotifyProfilesPanel() {
                 className="inline-block size-2 shrink-0 rounded-full"
                 style={{ background: active ? "var(--color-paper)" : color }}
               />
-              <span className="min-w-0 truncate">{p.name}</span>
+              <span className="min-w-0 truncate">{firstName(p.name)}</span>
             </button>
           );
         })}

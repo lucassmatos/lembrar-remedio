@@ -14,3 +14,9 @@ export function profileInitial(p: Profile): string {
   const cp = name.codePointAt(0);
   return cp ? String.fromCodePoint(cp).toUpperCase() : "?";
 }
+
+/** Primeiro nome (até o primeiro espaço) pra chips compactos. Vazio vira "?". */
+export function firstName(name: string): string {
+  const first = name.trim().split(/\s+/)[0];
+  return first || "?";
+}
