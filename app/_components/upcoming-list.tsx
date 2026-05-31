@@ -47,6 +47,7 @@ export function UpcomingList({
 }) {
   const [tz, setTz] = useState("America/Sao_Paulo");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [schedulingId, setSchedulingId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("upcoming");
 
   useEffect(() => {
@@ -90,6 +91,7 @@ export function UpcomingList({
     if (!confirm(`Apagar ${title}?`)) return;
     await deleteReminder(id);
     if (editingId === id) setEditingId(null);
+    if (schedulingId === id) setSchedulingId(null);
   }
 
   async function setStatus(id: string, status: "unscheduled" | "scheduled" | "done") {
@@ -124,6 +126,7 @@ export function UpcomingList({
           {list.map((item) => {
             const { reminder, schedule, daysAway } = item;
             const isEditing = editingId === reminder.id;
+            const isScheduling = schedulingId === reminder.id;
             const meta = KIND_META[reminder.kind] ?? KIND_META.appointment;
             const profile = profileById.get(reminder.profileId);
             const state = computeState(reminder, daysAway);
@@ -135,6 +138,16 @@ export function UpcomingList({
                       reminder={reminder}
                       onSaved={() => setEditingId(null)}
                       onCancel={() => setEditingId(null)}
+                    />
+                  </div>
+                ) : isScheduling ? (
+                  <div className="rounded-2xl border border-edge bg-paper-2/40 p-5">
+                    <ScheduleConfirm
+                      reminder={reminder}
+                      schedule={schedule}
+                      minDate={today}
+                      onDone={() => setSchedulingId(null)}
+                      onCancel={() => setSchedulingId(null)}
                     />
                   </div>
                 ) : (
@@ -195,7 +208,7 @@ export function UpcomingList({
                         {tab === "upcoming" && reminder.status === "unscheduled" ? (
                           <button
                             type="button"
-                            onClick={() => setStatus(reminder.id, "scheduled")}
+                            onClick={() => setSchedulingId(reminder.id)}
                             className="text-ink-soft underline decoration-edge-2 underline-offset-4 hover:text-ink"
                           >
                             agendei
@@ -251,6 +264,123 @@ export function UpcomingList({
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+const INPUT_CLASS =
+  "w-full bg-transparent pb-2 text-[16px] tnum text-ink outline-none";
+const INPUT_STYLE = { borderBottom: "1px solid var(--color-edge-2)" } as const;
+const FIELD_LABEL =
+  "mb-2 block text-[12px] uppercase tracking-[0.16em] text-ink-faint";
+
+/**
+ * Confirma data + horário ao marcar "agendei". A data original de uma consulta
+ * costuma ser um chute ("retorno daqui 6 meses"); ao marcar de fato, a pessoa
+ * informa a data real e o horário (obrigatório) antes de virar `scheduled`.
+ */
+function ScheduleConfirm({
+  reminder,
+  schedule,
+  minDate,
+  onDone,
+  onCancel,
+}: {
+  reminder: Reminder;
+  schedule: OneShotSchedule;
+  minDate: string;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [date, setDate] = useState(schedule.date);
+  const [time, setTime] = useState(schedule.time ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const noun = reminder.kind === "vaccine" ? "vacina" : "consulta";
+
+  async function confirm() {
+    setErr(null);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setErr(`Confirma a data da ${noun}.`);
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(time)) {
+      setErr(`Informa o horário da ${noun}.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateReminder(reminder.id, {
+        schedule: { type: "one-shot", date, time },
+        status: "scheduled",
+      });
+      onDone();
+    } catch {
+      setErr("Não rolou. Tenta de novo.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-4">
+        <div className="text-[11px] uppercase tracking-[0.16em] text-ink-faint">
+          Confirmar agendamento
+        </div>
+        <div className="mt-1 font-display text-[18px] leading-tight tracking-tight text-ink">
+          {reminder.title}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[1fr_auto] gap-6">
+        <div>
+          <label className={FIELD_LABEL}>Data</label>
+          <input
+            autoFocus
+            type="date"
+            value={date}
+            min={minDate}
+            onChange={(e) => setDate(e.target.value)}
+            className={INPUT_CLASS}
+            style={INPUT_STYLE}
+          />
+        </div>
+        <div>
+          <label className={FIELD_LABEL}>Hora</label>
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className={INPUT_CLASS}
+            style={INPUT_STYLE}
+          />
+        </div>
+      </div>
+
+      {err ? (
+        <p className="mt-4 text-[14px]" style={{ color: "var(--color-clay)" }}>
+          {err}
+        </p>
+      ) : null}
+
+      <div className="mt-5 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={confirm}
+          disabled={busy}
+          className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-tight text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? "Salvando" : "Confirmar"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+        >
+          cancelar
+        </button>
+      </div>
     </div>
   );
 }
