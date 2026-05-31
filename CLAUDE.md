@@ -9,6 +9,23 @@ médicos e diário do bebê (sonecas + amamentação), pra você e pra quem voc�
 Notificação por Telegram **e** Web Push (PWA, em paralelo), escaneia receita com
 foto (OpenAI BYOK), perfis compartilháveis entre cuidadores.
 
+## Fluxo de entrega (IMPORTANTE)
+
+Padrão pra **qualquer** mudança. Sem PR — o Lucas só revisa o que está na `main`/prod,
+então `git push` direto na `main` é o jeito dele ver o trabalho. Não abrir PR a menos
+que ele peça.
+
+1. **Desenvolver** a mudança.
+2. **Code-review** — rodar `/code-review` (high) no diff e corrigir o que aparecer.
+3. **E2E no ambiente** — não é só `npx vitest run` (a suíte cobre `lib/`, não componentes).
+   Subir o app local (`LR_DEV_LOCAL=1 npx next dev`) e **dirigir o fluxo real no browser**
+   via gstack `/browse` (criar o dado, clicar, validar o estado final). Não há Playwright;
+   "e2e" aqui = dogfooding do fluxo de verdade. Rodar `npx vitest run` + `npx tsc --noEmit`
+   + `npm run lint` também.
+4. **Mandar pra prod** — com tudo verde, commit **direto na `main`** e `git push`
+   (a Vercel deploya no push). Se a mudança tocar `lib/notify-one.ts`, `lib/telegram.ts`,
+   `lib/push.ts` ou `lib/next-dose.ts`, redeployar o Lambda também (ver AWS / deploy).
+
 ## Commands
 
 ```bash
