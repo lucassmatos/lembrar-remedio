@@ -123,6 +123,22 @@ export type Birthday = {
   createdAt: number;
 };
 
+/**
+ * Evento solto da casa (uma data só, não recorrente): "Festa do João dia 12",
+ * "Reunião na escola dia 20". Compartilhado entre parceiros (mesmo padrão de
+ * rotinas/aniversários, descoberta via getPartner). Sem perfil e sem check:
+ * aparece na Timeline até o dia e some depois (igual aniversário). Vive em
+ * user#<ownerSub>/event#<id>.
+ */
+export type HouseEvent = {
+  id: string;
+  ownerSub: string;
+  title: string;
+  date: string; // "YYYY-MM-DD" no tz do dono
+  time?: string; // HH:MM opcional; sem ele a Timeline mostra só a data
+  createdAt: number;
+};
+
 export const REMINDER_KINDS = ["medication", "vaccine", "appointment"] as const;
 export type ReminderKind = (typeof REMINDER_KINDS)[number];
 

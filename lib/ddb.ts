@@ -14,6 +14,7 @@ import type {
   Config,
   DayLog,
   Birthday,
+  HouseEvent,
   HouseList,
   HouseRoutine,
   ListItem,
@@ -81,6 +82,7 @@ const SK = {
   routine: (id: string) => `routine#${id}`,
   routineDone: (routineId: string, period: string) => `routinedone#${routineId}#${period}`,
   birthday: (id: string) => `birthday#${id}`,
+  event: (id: string) => `event#${id}`,
 };
 
 export async function ensureUser(
@@ -1251,6 +1253,55 @@ export async function deleteBirthday(ownerSub: string, id: string): Promise<void
     new DeleteCommand({
       TableName: TABLE,
       Key: { pk: PK.user(ownerSub), sk: SK.birthday(id) },
+    }),
+  );
+}
+
+// ── Eventos soltos da Casa ───────────────────────────────────────────────────
+// Datas avulsas (festa, reunião). Mesmo padrão das rotinas/aniversários:
+// criador + parceiro via getPartner.
+
+export async function listHouseEvents(ownerSub: string): Promise<HouseEvent[]> {
+  const res = await doc.send(
+    new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :sk)",
+      ExpressionAttributeValues: { ":pk": PK.user(ownerSub), ":sk": "event#" },
+    }),
+  );
+  return (res.Items ?? []).map(stripKeys<HouseEvent>);
+}
+
+/** Eventos da casa: os do próprio + os do parceiro. */
+export async function eventsForHousehold(sub: string): Promise<HouseEvent[]> {
+  const own = await listHouseEvents(sub);
+  const partner = await getPartner(sub);
+  const theirs = partner ? await listHouseEvents(partner.partnerSub) : [];
+  return [...own, ...theirs];
+}
+
+export async function getHouseEvent(ownerSub: string, id: string): Promise<HouseEvent | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.user(ownerSub), sk: SK.event(id) } }),
+  );
+  return res.Item ? stripKeys<HouseEvent>(res.Item) : null;
+}
+
+export async function putHouseEvent(ownerSub: string, e: HouseEvent): Promise<HouseEvent> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.user(ownerSub), sk: SK.event(e.id), ...e },
+    }),
+  );
+  return e;
+}
+
+export async function deleteHouseEvent(ownerSub: string, id: string): Promise<void> {
+  await doc.send(
+    new DeleteCommand({
+      TableName: TABLE,
+      Key: { pk: PK.user(ownerSub), sk: SK.event(id) },
     }),
   );
 }

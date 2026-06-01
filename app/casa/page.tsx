@@ -5,33 +5,39 @@ import { Shell } from "../_components/shell";
 import {
   addItem,
   createBirthday,
+  createEvent,
   createList,
   createRoutine,
   deleteBirthday,
+  deleteEvent,
   deleteItem,
   deleteList,
   deleteRoutine,
   getBirthdays,
+  getEvents,
   getHouseLists,
   getListDetail,
   getRoutines,
-  markRoutineDone,
   onChange,
   setItemDone,
-  unmarkRoutineDone,
+  updateEvent,
+  updateRoutine,
   type BirthdayInput,
   type BirthdayWithStatus,
+  type EventInput,
+  type EventWithStatus,
   type RoutineInput,
   type RoutineWithStatus,
 } from "@/lib/api";
 import { freqLabel } from "@/lib/routines";
 import { ROUTINE_FREQS, type HouseList, type ListItem, type RoutineFreq } from "@/lib/types";
-import { Cake } from "lucide-react";
+import { Cake, CalendarClock, Repeat } from "lucide-react";
 
 export default function CasaPage() {
   const [lists, setLists] = useState<HouseList[]>([]);
   const [routines, setRoutines] = useState<RoutineWithStatus[]>([]);
   const [birthdays, setBirthdays] = useState<BirthdayWithStatus[]>([]);
+  const [events, setEvents] = useState<EventWithStatus[]>([]);
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState<HouseList | null>(null);
 
@@ -93,6 +99,24 @@ export default function CasaPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const es = await getEvents();
+        if (!cancelled) setEvents(es);
+      } catch {
+        // ignore
+      }
+    }
+    refresh();
+    const off = onChange("events", refresh);
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
   // Sem h1 dedicado: a página é um stack de accordions (Listas, Rotinas,
   // Aniversários), cada um com seu serif h2 no header colapsável — um h1 "Casa"
   // no topo vira ruído. Kicker só, single source of truth.
@@ -113,6 +137,9 @@ export default function CasaPage() {
           </Accordion>
           <Accordion title="Rotinas" count={routines.length}>
             <RoutinesView routines={routines} setRoutines={setRoutines} />
+          </Accordion>
+          <Accordion title="Eventos" count={events.length}>
+            <EventsView events={events} setEvents={setEvents} />
           </Accordion>
           <Accordion title="Aniversários" count={birthdays.length}>
             <BirthdaysView birthdays={birthdays} setBirthdays={setBirthdays} />
@@ -399,24 +426,12 @@ function RoutinesView({
   setRoutines: React.Dispatch<React.SetStateAction<RoutineWithStatus[]>>;
 }) {
   const [adding, setAdding] = useState(false);
-
-  async function toggle(r: RoutineWithStatus) {
-    const next = !r.doneInPeriod;
-    setRoutines((curr) =>
-      curr.map((x) => (x.id === r.id ? { ...x, doneInPeriod: next } : x)),
-    );
-    try {
-      if (next) await markRoutineDone(r.ownerSub, r.id, r.currentPeriod);
-      else await unmarkRoutineDone(r.ownerSub, r.id, r.currentPeriod);
-    } catch {
-      setRoutines((curr) =>
-        curr.map((x) => (x.id === r.id ? { ...x, doneInPeriod: !next } : x)),
-      );
-    }
-  }
+  // Edição inline: id da rotina sendo editada (form pré-preenchido no lugar da linha).
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function remove(r: RoutineWithStatus) {
     if (!confirm(`Apagar a rotina “${r.title}”?`)) return;
+    setEditingId((cur) => (cur === r.id ? null : cur));
     setRoutines((curr) => curr.filter((x) => x.id !== r.id));
     try {
       await deleteRoutine(r.ownerSub, r.id);
@@ -440,7 +455,7 @@ function RoutinesView({
         </div>
       ) : null}
 
-      {adding ? <NewRoutineForm onDone={() => setAdding(false)} /> : null}
+      {adding ? <RoutineForm onDone={() => setAdding(false)} /> : null}
 
       {routines.length === 0 && !adding ? (
         <p className="py-2 text-[15px] text-ink-soft">
@@ -448,70 +463,66 @@ function RoutinesView({
         </p>
       ) : (
         <ul className="divide-y divide-edge">
-          {routines.map((r) => (
-            <li key={r.id} className="flex items-center justify-between gap-3 py-3">
-              <button
-                type="button"
-                onClick={() => toggle(r)}
-                className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                aria-pressed={r.doneInPeriod}
-              >
-                <span
-                  aria-hidden
-                  className="grid size-5 shrink-0 place-items-center rounded-full transition-colors"
-                  style={{
-                    border: "1.5px solid var(--color-edge-2)",
-                    background: r.doneInPeriod ? "var(--color-ink)" : "transparent",
-                    borderColor: r.doneInPeriod ? "var(--color-ink)" : "var(--color-edge-2)",
-                  }}
+          {routines.map((r) =>
+            editingId === r.id ? (
+              <li key={r.id} className="py-3">
+                <RoutineForm initial={r} onDone={() => setEditingId(null)} />
+              </li>
+            ) : (
+              <li key={r.id} className="flex items-center justify-between gap-3 py-3">
+                {/* Recorrência não tem "check": marcar feito não faz sentido numa
+                    coisa que repete todo mês. A linha edita; o feito do período
+                    vive na Timeline. */}
+                <button
+                  type="button"
+                  onClick={() => setEditingId(r.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
                 >
-                  {r.doneInPeriod ? (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path
-                        d="M2.5 6.2 5 8.5l4.5-5"
-                        stroke="var(--color-paper)"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  ) : null}
-                </span>
-                <span className="min-w-0">
-                  <span
-                    className={
-                      "block truncate font-display text-[18px] tracking-tight " +
-                      (r.doneInPeriod ? "text-ink-faint line-through" : "text-ink")
-                    }
-                  >
-                    {r.title}
+                  <Repeat
+                    size={18}
+                    strokeWidth={1.75}
+                    aria-hidden
+                    className="shrink-0"
+                    style={{ color: "var(--color-sand)" }}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-display text-[18px] tracking-tight text-ink">
+                      {r.title}
+                    </span>
+                    <span className="block text-[13px] text-ink-soft">
+                      {freqLabel(r)}
+                      {r.time ? ` · ${r.time}` : ""}
+                    </span>
                   </span>
-                  <span className="block text-[13px] text-ink-soft">
-                    {freqLabel(r)}
-                    {r.time ? ` · ${r.time}` : ""}
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => remove(r)}
-                className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-clay"
-              >
-                apagar
-              </button>
-            </li>
-          ))}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(r)}
+                  className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-clay"
+                >
+                  apagar
+                </button>
+              </li>
+            ),
+          )}
         </ul>
       )}
     </div>
   );
 }
 
-function NewRoutineForm({ onDone }: { onDone: () => void }) {
-  const [title, setTitle] = useState("");
-  const [freq, setFreq] = useState<RoutineFreq>("monthly");
-  const [anchor, setAnchor] = useState<number>(1);
-  const [time, setTime] = useState("");
+function RoutineForm({
+  initial,
+  onDone,
+}: {
+  initial?: RoutineWithStatus;
+  onDone: () => void;
+}) {
+  const editing = initial != null;
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [freq, setFreq] = useState<RoutineFreq>(initial?.freq ?? "monthly");
+  const [anchor, setAnchor] = useState<number>(initial?.anchor ?? 1);
+  const [time, setTime] = useState(initial?.time ?? "");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.SyntheticEvent) {
@@ -525,7 +536,8 @@ function NewRoutineForm({ onDone }: { onDone: () => void }) {
       ...(time ? { time } : {}),
     };
     try {
-      await createRoutine(input);
+      if (editing) await updateRoutine(initial!.ownerSub, initial!.id, input);
+      else await createRoutine(input);
       onDone();
     } catch {
       setBusy(false);
@@ -634,7 +646,7 @@ function NewRoutineForm({ onDone }: { onDone: () => void }) {
           disabled={busy}
           className="rounded-full bg-ink px-5 py-2 text-[14px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
         >
-          criar
+          {editing ? "salvar" : "criar"}
         </button>
         <button
           type="button"
@@ -687,6 +699,217 @@ function dateHint(b: BirthdayWithStatus): string {
   if (b.daysAway === 1) return `amanhã · ${dm}`;
   if (b.daysAway <= 30) return `em ${b.daysAway}d · ${dm}`;
   return dm;
+}
+
+/** Data local do navegador em YYYY-MM-DD (default do form de evento novo). */
+function todayLocalISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function eventDateHint(e: EventWithStatus): string {
+  const [, m, d] = e.date.split("-");
+  const dm = `${d}/${m}`;
+  const tail = e.time ? ` · ${e.time}` : "";
+  if (e.daysAway === 0) return `hoje · ${dm}${tail}`;
+  if (e.daysAway === 1) return `amanhã · ${dm}${tail}`;
+  if (e.daysAway < 0) return `passou · ${dm}${tail}`;
+  if (e.daysAway <= 60) return `em ${e.daysAway}d · ${dm}${tail}`;
+  return `${dm}${tail}`;
+}
+
+function EventsView({
+  events,
+  setEvents,
+}: {
+  events: EventWithStatus[];
+  setEvents: React.Dispatch<React.SetStateAction<EventWithStatus[]>>;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  async function remove(ev: EventWithStatus) {
+    if (!confirm(`Apagar o evento “${ev.title}”?`)) return;
+    setEditingId((cur) => (cur === ev.id ? null : cur));
+    setEvents((curr) => curr.filter((x) => x.id !== ev.id));
+    try {
+      await deleteEvent(ev.ownerSub, ev.id);
+    } catch {
+      setEvents((curr) => [...curr, ev].sort((a, b) => a.daysAway - b.daysAway));
+    }
+  }
+
+  return (
+    <div>
+      {!adding ? (
+        <div className="mb-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="rounded-full px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:text-ink"
+            style={{ border: "1px dashed var(--color-edge-2)" }}
+          >
+            + novo evento
+          </button>
+        </div>
+      ) : null}
+
+      {adding ? <EventForm onDone={() => setAdding(false)} /> : null}
+
+      {events.length === 0 && !adding ? (
+        <p className="py-2 text-[15px] text-ink-soft">
+          Nenhum evento ainda. Datas avulsas moram aqui (festa, reunião, viagem…).
+        </p>
+      ) : (
+        <ul className="divide-y divide-edge">
+          {events.map((ev) =>
+            editingId === ev.id ? (
+              <li key={ev.id} className="py-3">
+                <EventForm initial={ev} onDone={() => setEditingId(null)} />
+              </li>
+            ) : (
+              <li key={ev.id} className="flex items-center justify-between gap-3 py-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingId(ev.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  <CalendarClock
+                    size={18}
+                    strokeWidth={1.75}
+                    aria-hidden
+                    className="shrink-0"
+                    style={{ color: "var(--color-clay)" }}
+                  />
+                  <span className="min-w-0">
+                    <span
+                      className={
+                        "block truncate font-display text-[18px] tracking-tight " +
+                        (ev.daysAway < 0 ? "text-ink-faint" : "text-ink")
+                      }
+                    >
+                      {ev.title}
+                    </span>
+                    <span
+                      className={
+                        "block text-[13px] " +
+                        (ev.daysAway === 0 ? "font-medium text-amber" : "text-ink-soft")
+                      }
+                    >
+                      {eventDateHint(ev)}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(ev)}
+                  className="shrink-0 text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 transition-colors hover:text-clay"
+                >
+                  apagar
+                </button>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function EventForm({
+  initial,
+  onDone,
+}: {
+  initial?: EventWithStatus;
+  onDone: () => void;
+}) {
+  const editing = initial != null;
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [date, setDate] = useState(initial?.date ?? todayLocalISO());
+  const [time, setTime] = useState(initial?.time ?? "");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.SyntheticEvent) {
+    e.preventDefault();
+    if (busy || !title.trim() || !date) return;
+    setBusy(true);
+    const input: EventInput = {
+      title: title.trim(),
+      date,
+      ...(time ? { time } : {}),
+    };
+    try {
+      if (editing) await updateEvent(initial!.ownerSub, initial!.id, input);
+      else await createEvent(input);
+      onDone();
+    } catch {
+      setBusy(false);
+    }
+  }
+
+  const inputCls =
+    "w-full rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink disabled:opacity-60";
+
+  return (
+    <form
+      onSubmit={submit}
+      className="mb-4 grid gap-5 rounded-2xl p-5"
+      style={{ border: "1px solid var(--color-edge)", background: "var(--color-paper-2)" }}
+    >
+      <Field label="o que é">
+        <input
+          autoFocus
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="ex.: Festa da Lia, reunião na escola"
+          maxLength={80}
+          disabled={busy}
+          className={inputCls}
+          style={{ border: "1px solid var(--color-edge-2)" }}
+        />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="dia">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            disabled={busy}
+            className={"tnum " + inputCls}
+            style={{ border: "1px solid var(--color-edge-2)" }}
+          />
+        </Field>
+        <Field label="horário (opcional)">
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            disabled={busy}
+            className={"tnum " + inputCls}
+            style={{ border: "1px solid var(--color-edge-2)" }}
+          />
+        </Field>
+      </div>
+
+      <div className="flex items-center gap-3 pt-1 text-[14px]">
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-full bg-ink px-5 py-2 text-[14px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
+        >
+          {editing ? "salvar" : "criar"}
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          className="text-[13px] text-ink-faint underline decoration-edge-2 underline-offset-4 hover:text-ink"
+        >
+          cancelar
+        </button>
+      </div>
+    </form>
+  );
 }
 
 function BirthdaysView({

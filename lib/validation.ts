@@ -262,6 +262,12 @@ export const RoutinePostSchema = z
   );
 export type RoutinePost = z.infer<typeof RoutinePostSchema>;
 
+// PATCH de rotina = replace dos campos editáveis (mesma forma do POST). O form
+// de edição sempre manda todos, então um replace evita o vai-e-vem de campos
+// opcionais com refine. id/ownerSub/createdAt são preservados no servidor.
+export const RoutinePatchSchema = RoutinePostSchema;
+export type RoutinePatch = z.infer<typeof RoutinePatchSchema>;
+
 export const PERIOD = /^[0-9A-Za-z-]{4,20}$/;
 export const RoutineDonePostSchema = z
   .object({ period: z.string().regex(PERIOD) })
@@ -285,6 +291,19 @@ export const BirthdayPostSchema = z
     { message: "data inválida", path: ["day"] },
   );
 export type BirthdayPost = z.infer<typeof BirthdayPostSchema>;
+
+// ── Eventos soltos da casa ───────────────────────────────────────────────────
+// Uma data só (festa, reunião). PATCH = replace (mesma forma do POST).
+export const EventPostSchema = z
+  .object({
+    title: z.string().min(1).max(80),
+    date: z.string().regex(ISO_DATE, "YYYY-MM-DD"),
+    time: z.string().regex(HHMM, "HH:MM").optional(),
+  })
+  .strict();
+export type EventPost = z.infer<typeof EventPostSchema>;
+export const EventPatchSchema = EventPostSchema;
+export type EventPatch = z.infer<typeof EventPatchSchema>;
 
 export const PushSubscribeSchema = z
   .object({

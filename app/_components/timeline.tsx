@@ -11,6 +11,7 @@ import {
 } from "@/lib/schedule";
 import {
   getBirthdays,
+  getEvents,
   getLog,
   getRoutines,
   markRoutineDone,
@@ -19,6 +20,7 @@ import {
   unmarkRoutineDone,
   updateReminder,
   type BirthdayWithStatus,
+  type EventWithStatus,
   type RoutineWithStatus,
 } from "@/lib/api";
 import type {
@@ -34,7 +36,7 @@ import type {
 import { clock, formatDuration } from "@/lib/activity";
 import { freqLabel, isDueOn, timelineTime } from "@/lib/routines";
 import { KIND_META, KIND_ORDER, isReminderKind } from "@/lib/reminder-kinds";
-import { Cake, Calendar, Moon, Pill, Syringe, type LucideIcon } from "lucide-react";
+import { Cake, Calendar, CalendarClock, Moon, Pill, Syringe, type LucideIcon } from "lucide-react";
 import type { ReminderKind as RK } from "@/lib/types";
 import { profileFill } from "@/lib/profile-ui";
 import { ProfileBadge } from "./profile-badge";
@@ -145,6 +147,27 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
     };
   }, []);
 
+  // Eventos soltos da casa (festa, reunião): hoje (D-0) e próximos (até 30d).
+  // Sem check e sem "atrasado" — depois do dia some (igual aniversário).
+  const [events, setEvents] = useState<EventWithStatus[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchEvents() {
+      try {
+        const es = await getEvents();
+        if (!cancelled) setEvents(es);
+      } catch {
+        // ignore
+      }
+    }
+    fetchEvents();
+    const off = onChange("events", fetchEvents);
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
   const todayBirthdays = useMemo(() => {
     const today = nowInTz(tz).date;
     if (date !== today) return [];
@@ -156,6 +179,21 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
     if (date !== today) return [];
     return birthdays.filter((b) => b.daysAway > 0 && b.daysAway <= 30);
   }, [birthdays, date, tz]);
+
+  const todayEvents = useMemo(() => {
+    const today = nowInTz(tz).date;
+    if (date !== today) return [];
+    return events.filter((e) => e.daysAway === 0);
+  }, [events, date, tz]);
+
+  const upcomingEvents = useMemo(() => {
+    const today = nowInTz(tz).date;
+    if (date !== today) return [];
+    return events
+      .filter((e) => e.daysAway > 0 && e.daysAway <= 30)
+      .slice()
+      .sort((a, b) => a.daysAway - b.daysAway);
+  }, [events, date, tz]);
 
   const routinesDueToday = useMemo(() => {
     const today = nowInTz(tz).date;
@@ -378,6 +416,19 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
         </section>
       ) : null}
 
+      {todayEvents.length > 0 ? (
+        <section className="mb-12">
+          <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
+            Eventos hoje
+          </h2>
+          <ol className="divide-y divide-edge">
+            {todayEvents.map((e) => (
+              <EventRow key={e.id} event={e} />
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
       {routinesDueToday.length > 0 ? (
         <section className="mb-12">
           <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
@@ -426,13 +477,21 @@ export function Timeline({ date, tz, reminders, profiles = [], openNaps = [], no
         )}
       </section>
 
-      {upcomingOneShots.length > 0 || upcomingRoutines.length > 0 || upcomingBirthdays.length > 0 ? (
+      {upcomingOneShots.length > 0 ||
+      upcomingRoutines.length > 0 ||
+      upcomingBirthdays.length > 0 ||
+      upcomingEvents.length > 0 ? (
         <section>
           <h2 className="mb-4 font-display text-[18px] tracking-tight text-ink-soft">
             Próximos
           </h2>
           <ol className="divide-y divide-edge">
             {[
+              ...upcomingEvents.map((e) => ({
+                key: `e-${e.id}`,
+                daysAway: e.daysAway,
+                node: <EventRow event={e} />,
+              })),
               ...upcomingRoutines.map((r) => ({
                 key: `r-${r.id}`,
                 daysAway: r.next!.daysAway,
@@ -798,6 +857,29 @@ function BirthdayRow({ birthday }: { birthday: BirthdayWithStatus }) {
           />
           <span className="truncate">{birthday.name}</span>
         </div>
+      </div>
+      <span />
+    </li>
+  );
+}
+
+function EventRow({ event }: { event: EventWithStatus }) {
+  return (
+    <li className="grid grid-cols-[64px_1fr_auto] items-center gap-4 py-5">
+      <DateChip eventDate={event.date} eventDays={event.daysAway} />
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 font-display text-[19px] leading-tight tracking-tight text-ink">
+          <CalendarClock
+            size={16}
+            strokeWidth={1.75}
+            aria-hidden
+            style={{ color: "var(--color-clay)" }}
+          />
+          <span className="truncate">{event.title}</span>
+        </div>
+        {event.time ? (
+          <div className="mt-0.5 text-[13px] tnum text-ink-faint">{event.time}</div>
+        ) : null}
       </div>
       <span />
     </li>

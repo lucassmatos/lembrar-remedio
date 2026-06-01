@@ -1,6 +1,6 @@
 "use client";
 
-import type { Activity, Birthday, BottleContent, Config, DayLog, FeedSide, HouseList, HouseRoutine, ListItem, ListKind, NapActivity, Profile, Reminder, RoutineFreq } from "./types";
+import type { Activity, Birthday, BottleContent, Config, DayLog, FeedSide, HouseEvent, HouseList, HouseRoutine, ListItem, ListKind, NapActivity, Profile, Reminder, RoutineFreq } from "./types";
 
 const EVT = "lr:change";
 type Scope =
@@ -11,7 +11,8 @@ type Scope =
   | "activities"
   | "lists"
   | "routines"
-  | "birthdays";
+  | "birthdays"
+  | "events";
 
 function emit(scope: Scope) {
   if (typeof window !== "undefined") {
@@ -240,6 +241,7 @@ const ALL_SCOPES: Scope[] = [
   "lists",
   "routines",
   "birthdays",
+  "events",
 ];
 let lastRefetchAll = 0;
 export function refetchAll() {
@@ -351,6 +353,19 @@ export async function createRoutine(input: RoutineInput): Promise<HouseRoutine> 
   return data.routine;
 }
 
+export async function updateRoutine(
+  ownerSub: string,
+  id: string,
+  input: RoutineInput,
+): Promise<HouseRoutine> {
+  const data = await jsonFetch<{ routine: HouseRoutine }>(
+    `/api/routines/${id}?ownerSub=${encodeURIComponent(ownerSub)}`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+  emit("routines");
+  return data.routine;
+}
+
 export async function deleteRoutine(ownerSub: string, id: string): Promise<void> {
   await jsonFetch(`/api/routines/${id}?ownerSub=${encodeURIComponent(ownerSub)}`, {
     method: "DELETE",
@@ -416,6 +431,53 @@ export async function deleteBirthday(ownerSub: string, id: string): Promise<void
     method: "DELETE",
   });
   emit("birthdays");
+}
+
+// ── Eventos soltos da Casa ────────────────────────────────────────────────────
+
+export type EventWithStatus = HouseEvent & {
+  /** Dias até a data (0 = hoje, negativo = passou). */
+  daysAway: number;
+};
+
+export type EventInput = {
+  title: string;
+  date: string;
+  time?: string;
+};
+
+export async function getEvents(): Promise<EventWithStatus[]> {
+  const data = await jsonFetch<{ events: EventWithStatus[] }>("/api/events");
+  return data.events;
+}
+
+export async function createEvent(input: EventInput): Promise<HouseEvent> {
+  const data = await jsonFetch<{ event: HouseEvent }>("/api/events", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  emit("events");
+  return data.event;
+}
+
+export async function updateEvent(
+  ownerSub: string,
+  id: string,
+  input: EventInput,
+): Promise<HouseEvent> {
+  const data = await jsonFetch<{ event: HouseEvent }>(
+    `/api/events/${id}?ownerSub=${encodeURIComponent(ownerSub)}`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+  emit("events");
+  return data.event;
+}
+
+export async function deleteEvent(ownerSub: string, id: string): Promise<void> {
+  await jsonFetch(`/api/events/${id}?ownerSub=${encodeURIComponent(ownerSub)}`, {
+    method: "DELETE",
+  });
+  emit("events");
 }
 
 // ── Sharing ───────────────────────────────────────────────────────────────────
