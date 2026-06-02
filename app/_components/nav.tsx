@@ -4,9 +4,9 @@ export type NavKey = "timeline" | "lembretes" | "diario" | "casa" | "ajustes";
 
 const PRIMARY: { key: NavKey; label: string; href: string }[] = [
   { key: "timeline", label: "Timeline", href: "/" },
-  { key: "lembretes", label: "Lembretes", href: "/lembretes" },
+  { key: "lembretes", label: "Saúde", href: "/lembretes" },
+  { key: "casa", label: "Dia a dia", href: "/casa" },
   { key: "diario", label: "Diário", href: "/diario" },
-  { key: "casa", label: "Casa", href: "/casa" },
   { key: "ajustes", label: "Ajustes", href: "/settings" },
 ];
 

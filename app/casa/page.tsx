@@ -122,7 +122,7 @@ export default function CasaPage() {
   // no topo vira ruído. Kicker só, single source of truth.
   const header = (
     <section className="mb-8">
-      <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">casa</p>
+      <p className="text-[13px] uppercase tracking-[0.18em] text-ink-faint">dia a dia</p>
     </section>
   );
 
@@ -869,7 +869,7 @@ function EventForm({
         />
       </Field>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field label="dia">
           <input
             type="date"

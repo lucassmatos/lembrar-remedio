@@ -115,6 +115,28 @@ body {
     font: inherit;
     color: inherit;
   }
+
+  /* color-scheme guia o chrome dos controles nativos (date/time pickers,
+     dropdowns). Sem isso, em tema escuro o widget e o ícone do picker vêm
+     claros e somem no fundo. Segue light/dark do sistema e força dark no
+     modo noturno (que vence o sistema). */
+  html { color-scheme: light; }
+  @media (prefers-color-scheme: dark) { html { color-scheme: dark; } }
+  html[data-theme="night"] { color-scheme: dark; }
+
+  /* Inputs nativos de data/hora alinhados ao resto do form: mesma altura de
+     toque dos campos de texto e respiro no ícone do picker pra ele não colar
+     na borda do campo. O valor (yyyy-mm-dd / hh:mm) é sempre o mesmo; só o
+     formato exibido segue o locale do aparelho (dd/mm/aaaa, 24h no pt-BR). */
+  input[type="date"], input[type="time"] {
+    min-height: 1.875rem;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    margin-left: 0.375rem;
+    opacity: 0.5;
+    cursor: pointer;
+  }
 }
 
 @keyframes ring-pulse {

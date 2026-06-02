@@ -176,7 +176,7 @@ export function OneShotForm({
         />
       </div>
 
-      <div className="grid grid-cols-[1fr_auto] gap-6">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="mb-2 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
             Data
