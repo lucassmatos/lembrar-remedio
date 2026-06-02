@@ -110,7 +110,7 @@ export default function LembretesPage() {
           <div
             role="tablist"
             aria-label="Tipo de lembrete"
-            className="mb-7 flex flex-wrap gap-2"
+            className="mb-7 grid grid-cols-3 gap-2"
           >
             {KIND_ORDER.map((k) => {
               const m = KIND_META[k];
@@ -123,7 +123,7 @@ export default function LembretesPage() {
                   aria-selected={active}
                   onClick={() => chooseKind(k)}
                   className={
-                    "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] transition-all " +
+                    "inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-2 text-[14px] transition-all " +
                     (active
                       ? "bg-ink text-paper"
                       : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")

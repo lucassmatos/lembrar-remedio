@@ -192,7 +192,7 @@ export default function SettingsPage() {
           </Section>
 
           <Section label="tela inicial">
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {([
                 { value: "timeline", label: "Timeline" },
                 { value: "diario", label: "Diário" },
@@ -204,7 +204,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => chooseStartScreen(o.value)}
                     className={
-                      "rounded-full px-4 py-2 text-[14px] transition-all " +
+                      "rounded-full px-4 py-2 text-center text-[14px] transition-all " +
                       (active
                         ? "bg-ink text-paper"
                         : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")

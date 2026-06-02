@@ -140,7 +140,7 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
         <label className="mb-3 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
           De quantas em quantas horas
         </label>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {INTERVAL_CHIPS.map((h) => {
             const active = intervalHours === h;
             return (
@@ -149,7 +149,7 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
                 type="button"
                 onClick={() => setIntervalHours(h)}
                 className={
-                  "rounded-full px-3.5 py-1.5 text-[14px] tnum transition-all " +
+                  "rounded-full px-3 py-1.5 text-center text-[14px] tnum transition-all " +
                   (active
                     ? "bg-ink text-paper"
                     : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
@@ -159,7 +159,6 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
               </button>
             );
           })}
-          <span className="mx-1 text-ink-faint">ou</span>
           <input
             type="number"
             min={1}
@@ -167,7 +166,7 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
             value={typeof intervalHours === "number" && !INTERVAL_CHIPS.includes(intervalHours) ? intervalHours : ""}
             onChange={(e) => setIntervalHours(e.target.value === "" ? "" : Number(e.target.value))}
             placeholder="outro"
-            className="w-20 rounded-full border border-edge-2 bg-transparent px-3 py-1.5 text-center text-[14px] tnum text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+            className="w-full rounded-full border border-edge-2 bg-transparent px-3 py-1.5 text-center text-[14px] tnum text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
           />
         </div>
       </div>
@@ -176,12 +175,12 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
         <label className="mb-3 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
           Por quantos dias
         </label>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => setDurationDays("none")}
             className={
-              "rounded-full px-3.5 py-1.5 text-[14px] transition-all " +
+              "rounded-full px-3 py-1.5 text-center text-[14px] transition-all " +
               (durationDays === "none"
                 ? "bg-ink text-paper"
                 : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
@@ -197,7 +196,7 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
                 type="button"
                 onClick={() => setDurationDays(d)}
                 className={
-                  "rounded-full px-3.5 py-1.5 text-[14px] tnum transition-all " +
+                  "rounded-full px-3 py-1.5 text-center text-[14px] tnum transition-all " +
                   (active
                     ? "bg-ink text-paper"
                     : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
@@ -207,7 +206,6 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
               </button>
             );
           })}
-          <span className="mx-1 text-ink-faint">ou</span>
           <input
             type="number"
             min={1}
@@ -217,7 +215,7 @@ export function MedForm({ reminder, profileId, onSaved, onCancel }: Props) {
               setDurationDays(e.target.value === "" ? "none" : Number(e.target.value))
             }
             placeholder="outro"
-            className="w-20 rounded-full border border-edge-2 bg-transparent px-3 py-1.5 text-center text-[14px] tnum text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
+            className="w-full rounded-full border border-edge-2 bg-transparent px-3 py-1.5 text-center text-[14px] tnum text-ink outline-none placeholder:text-ink-faint/60 focus:border-ink"
           />
         </div>
       </div>

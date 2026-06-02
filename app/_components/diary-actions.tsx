@@ -209,7 +209,7 @@ function MlPicker({ value, onChange }: { value: number; onChange: (n: number) =>
   return (
     <div>
       <p className="mb-2 text-[12px] uppercase tracking-[0.16em] text-ink-faint">volume (ml)</p>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {ML_PRESETS.map((ml) => (
           <button
             key={ml}
@@ -217,7 +217,7 @@ function MlPicker({ value, onChange }: { value: number; onChange: (n: number) =>
             onClick={() => onChange(ml)}
             aria-pressed={value === ml}
             className={
-              "tnum rounded-full px-4 py-2 text-[15px] font-medium transition-colors " +
+              "tnum rounded-full px-4 py-2 text-center text-[15px] font-medium transition-colors " +
               (value === ml ? "text-paper" : "text-ink-soft hover:text-ink")
             }
             style={
@@ -229,7 +229,7 @@ function MlPicker({ value, onChange }: { value: number; onChange: (n: number) =>
             {ml}
           </button>
         ))}
-        <label className="flex items-center gap-1.5 rounded-full px-3 py-2" style={{ border: "1px solid var(--color-edge-2)" }}>
+        <label className="flex items-center justify-center gap-1.5 rounded-full px-3 py-2" style={{ border: "1px solid var(--color-edge-2)" }}>
           <input
             type="number"
             inputMode="numeric"
@@ -240,7 +240,7 @@ function MlPicker({ value, onChange }: { value: number; onChange: (n: number) =>
               const n = Number(e.target.value);
               if (Number.isFinite(n)) onChange(Math.max(1, Math.min(2000, Math.round(n))));
             }}
-            className="tnum w-14 bg-transparent text-[15px] text-ink outline-none"
+            className="tnum w-12 bg-transparent text-right text-[15px] text-ink outline-none"
             aria-label="volume em ml"
           />
           <span className="text-[13px] text-ink-faint">ml</span>
