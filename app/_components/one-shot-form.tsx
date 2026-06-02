@@ -208,7 +208,7 @@ export function OneShotForm({
         <label className="mb-3 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
           Me avise
         </label>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {LEAD_CHIPS.map((d) => {
             const active = leads.includes(d);
             const label = d === 0 ? "no dia" : d === 1 ? "1 dia antes" : `${d}d antes`;
@@ -218,7 +218,7 @@ export function OneShotForm({
                 type="button"
                 onClick={() => toggleLead(d)}
                 className={
-                  "rounded-full px-3.5 py-1.5 text-[14px] transition-all " +
+                  "rounded-full px-3 py-1.5 text-center text-[14px] transition-all " +
                   (active
                     ? "bg-ink text-paper"
                     : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
@@ -241,7 +241,7 @@ export function OneShotForm({
           <label className="mb-3 block text-[12px] uppercase tracking-[0.16em] text-ink-faint">
             Estado
           </label>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {STATUS_OPTIONS.map((o) => {
               const active = status === o.value;
               return (
@@ -250,7 +250,7 @@ export function OneShotForm({
                   type="button"
                   onClick={() => setStatus(o.value)}
                   className={
-                    "rounded-full px-3.5 py-1.5 text-[14px] transition-all " +
+                    "rounded-full px-3 py-1.5 text-center text-[14px] transition-all " +
                     (active
                       ? "bg-ink text-paper"
                       : "border border-edge-2 text-ink-soft hover:border-ink-soft hover:text-ink")
