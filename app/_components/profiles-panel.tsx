@@ -139,11 +139,11 @@ export function ProfilesPanel() {
                     role="switch"
                     aria-checked={draftAindaMama}
                     onClick={() => setDraftAindaMama((v) => !v)}
-                    className="flex items-center gap-2.5 text-[14px] text-ink-soft hover:text-ink"
+                    className="flex items-start gap-2.5 text-left text-[14px] text-ink-soft hover:text-ink"
                   >
                     <span
                       aria-hidden
-                      className="grid size-5 place-items-center rounded-md text-[12px] text-paper transition-colors"
+                      className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-[12px] text-paper transition-colors"
                       style={{
                         background: draftAindaMama ? "var(--color-ink)" : "transparent",
                         border: draftAindaMama
@@ -153,8 +153,12 @@ export function ProfilesPanel() {
                     >
                       {draftAindaMama ? "✓" : ""}
                     </span>
-                    bebê que ainda mama
-                    <span className="text-ink-faint">· mostra a mamada no diário</span>
+                    <span className="min-w-0">
+                      recém-nascido (RN)
+                      <span className="block text-[13px] text-ink-faint">
+                        abre o diário de soneca e mamada
+                      </span>
+                    </span>
                   </button>
                   <div className="flex items-center gap-4 pt-1">
                     <button
