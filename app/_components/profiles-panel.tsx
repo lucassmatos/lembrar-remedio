@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { addProfile, deleteProfile, getProfiles, onChange, updateProfile } from "@/lib/api";
-import { BLOOD_TYPES, PROFILE_COLORS, type BloodType, type Profile, type ProfileColor } from "@/lib/types";
+import {
+  ABO_GROUPS,
+  PROFILE_COLORS,
+  RH_FACTORS,
+  type AboGroup,
+  type BloodType,
+  type Profile,
+  type ProfileColor,
+  type RhFactor,
+} from "@/lib/types";
 import { profileFill } from "@/lib/profile-ui";
 import { ProfileBadge } from "./profile-badge";
 
@@ -13,7 +22,9 @@ export function ProfilesPanel() {
   const [draftName, setDraftName] = useState("");
   const [draftColor, setDraftColor] = useState<ProfileColor>("sage");
   const [draftAindaMama, setDraftAindaMama] = useState(false);
-  const [draftBloodType, setDraftBloodType] = useState<BloodType | undefined>(undefined);
+  // Grupo sanguíneo dividido em dois selects: letra (ABO) + fator Rh.
+  const [draftAbo, setDraftAbo] = useState<AboGroup | "">("");
+  const [draftRh, setDraftRh] = useState<RhFactor | "">("");
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -45,12 +56,20 @@ export function ProfilesPanel() {
     setDraftName(p.name);
     setDraftColor(p.color);
     setDraftAindaMama(!!p.aindaMama);
-    setDraftBloodType(p.bloodType);
+    // "AB+" → abo "AB", rh "+" (o fator é sempre o último char).
+    setDraftAbo(p.bloodType ? (p.bloodType.slice(0, -1) as AboGroup) : "");
+    setDraftRh(p.bloodType ? (p.bloodType.slice(-1) as RhFactor) : "");
     setErr(null);
   }
 
   async function saveEdit() {
     if (!editingId) return;
+    // Grupo sanguíneo só vale completo: pediu metade, pede a outra.
+    if (!!draftAbo !== !!draftRh) {
+      return setErr("escolha a letra e o fator Rh do grupo sanguíneo");
+    }
+    const bloodType: BloodType | null =
+      draftAbo && draftRh ? (`${draftAbo}${draftRh}` as BloodType) : null;
     setBusy(true);
     setErr(null);
     try {
@@ -58,7 +77,7 @@ export function ProfilesPanel() {
         name: draftName.trim(),
         color: draftColor,
         aindaMama: draftAindaMama,
-        bloodType: draftBloodType ?? null,
+        bloodType,
       });
       setEditingId(null);
     } catch (e) {
@@ -139,28 +158,35 @@ export function ProfilesPanel() {
                   </div>
                   <div className="space-y-1.5">
                     <span className="block text-[13px] text-ink-faint">grupo sanguíneo</span>
-                    <div className="flex flex-wrap gap-2">
-                      {BLOOD_TYPES.map((bt) => {
-                        const on = draftBloodType === bt;
-                        return (
-                          <button
-                            key={bt}
-                            type="button"
-                            onClick={() => setDraftBloodType((cur) => (cur === bt ? undefined : bt))}
-                            aria-pressed={on}
-                            className="rounded-full px-3 py-1 text-[13px] tabular-nums transition-colors"
-                            style={{
-                              background: on ? "var(--color-ink)" : "transparent",
-                              color: on ? "var(--color-paper)" : "var(--color-ink-soft)",
-                              border: on
-                                ? "1px solid var(--color-ink)"
-                                : "1px solid var(--color-edge-2)",
-                            }}
-                          >
-                            {bt}
-                          </button>
-                        );
-                      })}
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={draftAbo}
+                        onChange={(e) => setDraftAbo(e.target.value as AboGroup | "")}
+                        aria-label="grupo sanguíneo (letra)"
+                        className="rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none focus:border-ink"
+                        style={{ border: "1px solid var(--color-edge-2)" }}
+                      >
+                        <option value="">—</option>
+                        {ABO_GROUPS.map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={draftRh}
+                        onChange={(e) => setDraftRh(e.target.value as RhFactor | "")}
+                        aria-label="fator Rh"
+                        className="rounded-lg bg-transparent px-3 py-2 text-[16px] text-ink outline-none focus:border-ink"
+                        style={{ border: "1px solid var(--color-edge-2)" }}
+                      >
+                        <option value="">—</option>
+                        {RH_FACTORS.map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <button

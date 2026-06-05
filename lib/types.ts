@@ -4,6 +4,12 @@ export type ProfileColor = (typeof PROFILE_COLORS)[number];
 export const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] as const;
 export type BloodType = (typeof BLOOD_TYPES)[number];
 
+/** Partes do grupo sanguíneo, pros dois selects do form (letra + fator Rh). */
+export const ABO_GROUPS = ["A", "B", "AB", "O"] as const;
+export type AboGroup = (typeof ABO_GROUPS)[number];
+export const RH_FACTORS = ["+", "-"] as const;
+export type RhFactor = (typeof RH_FACTORS)[number];
+
 export type ProfileShareRole = "partner" | "caregiver";
 
 export type ProfileShareEntry = {
