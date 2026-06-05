@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { addProfile, deleteProfile, getProfiles, onChange, updateProfile } from "@/lib/api";
-import { PROFILE_COLORS, type Profile, type ProfileColor } from "@/lib/types";
+import { BLOOD_TYPES, PROFILE_COLORS, type BloodType, type Profile, type ProfileColor } from "@/lib/types";
 import { profileFill } from "@/lib/profile-ui";
 import { ProfileBadge } from "./profile-badge";
 
@@ -13,6 +13,7 @@ export function ProfilesPanel() {
   const [draftName, setDraftName] = useState("");
   const [draftColor, setDraftColor] = useState<ProfileColor>("sage");
   const [draftAindaMama, setDraftAindaMama] = useState(false);
+  const [draftBloodType, setDraftBloodType] = useState<BloodType | undefined>(undefined);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function ProfilesPanel() {
     setDraftName(p.name);
     setDraftColor(p.color);
     setDraftAindaMama(!!p.aindaMama);
+    setDraftBloodType(p.bloodType);
     setErr(null);
   }
 
@@ -56,6 +58,7 @@ export function ProfilesPanel() {
         name: draftName.trim(),
         color: draftColor,
         aindaMama: draftAindaMama,
+        bloodType: draftBloodType ?? null,
       });
       setEditingId(null);
     } catch (e) {
@@ -134,6 +137,32 @@ export function ProfilesPanel() {
                       />
                     ))}
                   </div>
+                  <div className="space-y-1.5">
+                    <span className="block text-[13px] text-ink-faint">grupo sanguíneo</span>
+                    <div className="flex flex-wrap gap-2">
+                      {BLOOD_TYPES.map((bt) => {
+                        const on = draftBloodType === bt;
+                        return (
+                          <button
+                            key={bt}
+                            type="button"
+                            onClick={() => setDraftBloodType((cur) => (cur === bt ? undefined : bt))}
+                            aria-pressed={on}
+                            className="rounded-full px-3 py-1 text-[13px] tabular-nums transition-colors"
+                            style={{
+                              background: on ? "var(--color-ink)" : "transparent",
+                              color: on ? "var(--color-paper)" : "var(--color-ink-soft)",
+                              border: on
+                                ? "1px solid var(--color-ink)"
+                                : "1px solid var(--color-edge-2)",
+                            }}
+                          >
+                            {bt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <button
                     type="button"
                     role="switch"
@@ -190,6 +219,11 @@ export function ProfilesPanel() {
                         </span>
                       ) : null}
                     </div>
+                    {p.bloodType ? (
+                      <div className="mt-0.5 text-[13px] tabular-nums text-ink-faint">
+                        {p.bloodType}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-4 text-[13px]">
                     <button

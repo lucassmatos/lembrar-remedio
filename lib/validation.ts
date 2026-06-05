@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
-import { BOTTLE_CONTENTS, FEED_METHODS, FEED_SIDES, LIST_KINDS, PROFILE_COLORS, REMINDER_KINDS, ROUTINE_FREQS } from "./types";
+import { BLOOD_TYPES, BOTTLE_CONTENTS, FEED_METHODS, FEED_SIDES, LIST_KINDS, PROFILE_COLORS, REMINDER_KINDS, ROUTINE_FREQS } from "./types";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -140,6 +140,7 @@ export const ProfilePostSchema = z
     name: z.string().min(1).max(40),
     color: z.enum(PROFILE_COLORS).optional(),
     aindaMama: z.boolean().optional(),
+    bloodType: z.enum(BLOOD_TYPES).optional(),
   })
   .strict();
 export type ProfilePost = z.infer<typeof ProfilePostSchema>;
@@ -149,6 +150,8 @@ export const ProfilePatchSchema = z
     name: z.string().min(1).max(40).optional(),
     color: z.enum(PROFILE_COLORS).optional(),
     aindaMama: z.boolean().optional(),
+    // null = limpar o grupo sanguíneo; ausente = manter o atual.
+    bloodType: z.enum(BLOOD_TYPES).nullable().optional(),
   })
   .strict();
 export type ProfilePatch = z.infer<typeof ProfilePatchSchema>;

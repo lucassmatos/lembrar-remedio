@@ -1,6 +1,9 @@
 export const PROFILE_COLORS = ["sage", "clay", "amber", "violet", "sky", "sand"] as const;
 export type ProfileColor = (typeof PROFILE_COLORS)[number];
 
+export const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] as const;
+export type BloodType = (typeof BLOOD_TYPES)[number];
+
 export type ProfileShareRole = "partner" | "caregiver";
 
 export type ProfileShareEntry = {
@@ -38,6 +41,8 @@ export type Profile = {
   isDefault?: boolean;
   /** Bebê que ainda mama: habilita a seção de mamada no diário. */
   aindaMama?: boolean;
+  /** Grupo sanguíneo da pessoa (opcional). */
+  bloodType?: BloodType;
   createdAt: number;
   ownerSub: string;
   sharedWith: ProfileShareEntry[];
