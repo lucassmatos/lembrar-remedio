@@ -16,13 +16,14 @@
 #include "Button2.h"
 
 #include "config.h"   // WIFI_SSID, WIFI_PASS, DEVICE_BASE_URL, DEVICE_TOKEN
+#include "esp_sleep.h"
 
 #ifndef BOARD_HAS_PSRAM
 #error "Habilite a PSRAM (build_flags -DBOARD_HAS_PSRAM)"
 #endif
 
 // ── estado ──────────────────────────────────────────────────────────────────
-static const uint32_t REFRESH_MS = 5UL * 60UL * 1000UL; // re-busca a cada 5 min
+static const int SLEEP_MINUTES = 15; // acorda, atualiza e dorme de novo
 static const int MAX_DOSES = 16;
 static const int MAX_EVENTS = 8;
 
@@ -349,14 +350,13 @@ void setup() {
 
   fetchTimeline();
   render(true);
+
+  // Dorme até a próxima atualização. O e-paper segura a imagem sem energia; no
+  // deep sleep o chip reinicia do zero ao acordar, então tudo roda no setup().
+  Serial.printf(">> deep sleep por %d min\n", SLEEP_MINUTES);
+  Serial.flush();
+  esp_sleep_enable_timer_wakeup((uint64_t)SLEEP_MINUTES * 60ULL * 1000000ULL);
+  esp_deep_sleep_start();
 }
 
-void loop() {
-  btn.loop();
-  btnBoot.loop();
-  if (millis() - lastFetch > REFRESH_MS) {
-    if (fetchTimeline()) render(true);
-    else lastFetch = millis(); // evita martelar em caso de falha
-  }
-  delay(10);
-}
+void loop() {}
