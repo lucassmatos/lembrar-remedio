@@ -8,6 +8,8 @@ const PUBLIC_PATHS = [
   "/api/telegram/webhook",
   "/api/telegram/setup",
   "/api/cron",
+  // O mostrador autentica por token próprio (requireDeviceToken), não por sessão.
+  "/api/device",
   "/manifest.webmanifest",
   "/icon.svg",
   "/sw.js",
