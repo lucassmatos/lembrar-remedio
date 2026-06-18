@@ -6,12 +6,13 @@
  * Auto-atualiza a cada REFRESH_MS. (Deep sleep fica pra versão a bateria.)
  */
 #include <Arduino.h>
+#include <ctype.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include "epd_driver.h"
-#include "firasans.h"
+#include "font_p.h"
 #include "Button2.h"
 
 #include "config.h"   // WIFI_SSID, WIFI_PASS, DEVICE_BASE_URL, DEVICE_TOKEN
@@ -55,10 +56,61 @@ static uint32_t lastFetch = 0;
 Button2 btn(BUTTON_1);
 Button2 btnBoot(0);
 
-// ── util de texto ─────────────────────────────────────────────────────────────
-static void text(int x, int y, const char *s) {
-  int32_t cx = x, cy = y;
-  writeln((GFXfont *)&FiraSans, s, &cx, &cy, framebuffer);
+// ── render girado (RETRATO) ───────────────────────────────────────────────────
+// A tela é 960x540 (paisagem). Tratamos um canvas RETRATO de PW=540 x PH=960 e
+// mapeamos cada pixel girando 90°: portrait (px,py) -> painel (py, 539-px).
+// O texto usa a fonte mono gerada (font_p.h), desenhada pixel a pixel já girada.
+static const int PW = EPD_HEIGHT;   // 540 (largura do retrato)
+static const int PH = EPD_WIDTH;    // 960 (altura do retrato)
+
+static inline void pset(int px, int py, uint8_t color) {
+  if ((unsigned)px >= (unsigned)PW || (unsigned)py >= (unsigned)PH) return;
+  epd_draw_pixel(py, (EPD_HEIGHT - 1) - px, color, framebuffer);
+}
+
+static int pglyph(int px, int py, char c) {
+  if (c < PFONT_FIRST || c > PFONT_LAST) return PFONT_W;
+  const unsigned char *bmp = &PFONT_BMP[(c - PFONT_FIRST) * PFONT_W * PFONT_H];
+  for (int cy = 0; cy < PFONT_H; cy++)
+    for (int cx = 0; cx < PFONT_W; cx++) {
+      uint8_t a = bmp[cy * PFONT_W + cx];        // tinta 0..255
+      if (a > 40) pset(px + cx, py + cy, 255 - a);
+    }
+  return PFONT_W;
+}
+
+static void ptext(int px, int py, const char *s) {
+  int x = px;
+  for (; *s; s++) { pglyph(x, py, *s); x += PFONT_W; }
+}
+static int ptextw(const char *s) { return (int)strlen(s) * PFONT_W; }
+
+static void phline(int px, int py, int len) {
+  for (int i = 0; i < len; i++) pset(px + i, py, 0);
+}
+
+static void truncCopy(char *dst, size_t dstsz, const char *src, int maxch) {
+  int n = maxch < (int)dstsz - 1 ? maxch : (int)dstsz - 1;
+  if (n < 0) n = 0;
+  int i = 0;
+  for (; src[i] && i < n; i++) dst[i] = src[i];
+  dst[i] = 0;
+}
+
+// Iniciais: 1a letra do 1o nome + 1a letra do último (se houver). "Lucas Matos"->"LM".
+static void initials(const char *name, char *out) {
+  out[0] = 0;
+  const char *p = name;
+  while (*p == ' ') p++;
+  if (!*p) return;
+  int n = 0;
+  out[n++] = toupper((unsigned char)*p);
+  const char *last = nullptr;
+  for (const char *q = p; *q; q++) {
+    if (*q != ' ' && (q == p || q[-1] == ' ')) last = q;  // início de cada token
+  }
+  if (last && last != p) out[n++] = toupper((unsigned char)*last);
+  out[n] = 0;
 }
 
 // ── WiFi ──────────────────────────────────────────────────────────────────────
@@ -179,77 +231,74 @@ static bool postDose(const char *slotKey, bool taken) {
   return code == 200;
 }
 
-// ── desenho ──────────────────────────────────────────────────────────────────
-static const int ROW_H = 66;
-static const int DOSE_Y0 = 100;
-static const int MAX_DOSE_ROWS = 5;
-
-static const int MARGIN = 46;
-static const int RIGHT = EPD_WIDTH - MARGIN;   // 914
+// ── desenho (retrato) ──────────────────────────────────────────────────────────
+static const int PM = 24;                          // margem
+static const int PMAXCH = (PW - 2 * PM) / PFONT_W; // chars por linha (~30)
+static const int PROW = PFONT_H + 14;              // altura de uma linha (~48)
+static const int PMAX_DOSES = 16;
 
 static void render(bool full) {
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
 
-  // cabeçalho: "Hoje  DD/MM" à esquerda, relógio à direita
-  text(MARGIN, 58, "Hoje");
-  text(210, 58, headerDate);
-  text(800, 58, nowClock);
-  if (!wifiOk) text(560, 58, "sem wifi");
-  epd_draw_hline(MARGIN, 80, EPD_WIDTH - 2 * MARGIN, 0, framebuffer);
+  // cabeçalho: "Hoje DD/MM" à esquerda, relógio à direita
+  char head[24];
+  snprintf(head, sizeof(head), "Hoje  %s", headerDate);
+  ptext(PM, 16, head);
+  ptext(PW - PM - ptextw(nowClock), 16, nowClock);
+  phline(PM, 16 + PFONT_H + 6, PW - 2 * PM);
 
-  // só as doses do dia
-  if (doseCount == 0) {
-    text(MARGIN, DOSE_Y0 + 44, "Sem doses pra hoje :)");
-  }
-  int rows = doseCount < MAX_DOSE_ROWS ? doseCount : MAX_DOSE_ROWS;
-  for (int i = 0; i < rows; i++) {
+  int y = 16 + PFONT_H + 18;
+
+  if (doseCount == 0) ptext(PM, y + 10, "Sem doses pra hoje :)");
+  if (!wifiOk) ptext(PM, PH - 36, "sem wifi");
+
+  int shown = doseCount < PMAX_DOSES ? doseCount : PMAX_DOSES;
+  for (int i = 0; i < shown && y + PROW < PH - 40; i++) {
     Dose &d = doses[i];
-    int y = DOSE_Y0 + i * ROW_H;
-    int base = y + 46;
-    text(MARGIN, base, d.time);
-    char line[70];
-    if (strlen(d.who) > 0) snprintf(line, sizeof(line), "%s  (%s)", d.title, d.who);
-    else snprintf(line, sizeof(line), "%s", d.title);
-    text(210, base, line);
+    const char *st = strcmp(d.state, "now") == 0 ? "agora"
+                    : strcmp(d.state, "missed") == 0 ? "atras." : "";
+    char ini[4];
+    initials(d.who, ini);
+    // direita (justificada): "status INI" — ou só um deles
+    char right[16];
+    if (st[0] && ini[0]) snprintf(right, sizeof(right), "%s %s", st, ini);
+    else snprintf(right, sizeof(right), "%s", ini[0] ? ini : st);
+    int rw = (int)strlen(right);
 
-    // status ancorado na borda direita (glifo + palavra)
-    if (d.taken) {
-      epd_draw_line(RIGHT - 36, base - 12, RIGHT - 26, base - 2, 0, framebuffer);
-      epd_draw_line(RIGHT - 26, base - 2, RIGHT - 6, base - 28, 0, framebuffer);
-      text(RIGHT - 130, base, "feito");
-    } else if (strcmp(d.state, "now") == 0) {
-      epd_fill_circle(RIGHT - 16, base - 12, 9, 0, framebuffer);
-      text(RIGHT - 130, base, "agora");
-    } else if (strcmp(d.state, "missed") == 0) {
-      epd_draw_circle(RIGHT - 16, base - 12, 9, 0, framebuffer);
-      text(RIGHT - 170, base, "atrasado");
-    } else {
-      epd_draw_circle(RIGHT - 16, base - 12, 9, 0, framebuffer);
-    }
+    char left[64];
+    snprintf(left, sizeof(left), "%s %s", d.time, d.title);
+    char ltr[64];
+    truncCopy(ltr, sizeof(ltr), left, PMAXCH - (rw ? rw + 1 : 0));
+    ptext(PM, y, ltr);
+    if (rw) ptext(PW - PM - rw * PFONT_W, y, right);
 
-    // régua de largura cheia: dá estrutura e usa o espaço lateral
-    epd_draw_hline(MARGIN, y + ROW_H, EPD_WIDTH - 2 * MARGIN, 0, framebuffer);
+    phline(PM, y + PFONT_H + 4, PW - 2 * PM);
+    y += PROW;
   }
-  if (doseCount > MAX_DOSE_ROWS) {
+  if (doseCount > shown) {
     char more[24];
-    snprintf(more, sizeof(more), "+%d doses", doseCount - MAX_DOSE_ROWS);
-    text(MARGIN, DOSE_Y0 + rows * ROW_H + 40, more);
+    snprintf(more, sizeof(more), "+%d doses", doseCount - shown);
+    ptext(PM, y + 4, more);
+    y += PROW;
   }
 
-  // "tambem hoje": consultas/vacinas SÓ de hoje (daysAway==0), sem "Proximos"
+  // consultas/vacinas SÓ de hoje (daysAway==0)
   int todayEv = 0;
   for (int i = 0; i < eventCount; i++) if (events[i].daysAway == 0) todayEv++;
-  if (todayEv > 0) {
-    int ey = DOSE_Y0 + rows * ROW_H + 50;
-    text(MARGIN, ey, "Tambem hoje");
-    ey += 44;
-    for (int i = 0; i < eventCount && ey < 510; i++) {
+  if (todayEv > 0 && y + PROW < PH - 20) {
+    y += 8;
+    ptext(PM, y, "Tambem hoje");
+    y += PROW;
+    for (int i = 0; i < eventCount && y + PROW < PH - 10; i++) {
       if (events[i].daysAway != 0) continue;
-      char line[70];
-      if (strlen(events[i].who) > 0) snprintf(line, sizeof(line), "%s  (%s)", events[i].title, events[i].who);
-      else snprintf(line, sizeof(line), "%s", events[i].title);
-      text(MARGIN, ey, line);
-      ey += 42;
+      char ini[4];
+      initials(events[i].who, ini);
+      int rw = (int)strlen(ini);
+      char t[64];
+      truncCopy(t, sizeof(t), events[i].title, PMAXCH - (rw ? rw + 1 : 0));
+      ptext(PM, y, t);
+      if (rw) ptext(PW - PM - rw * PFONT_W, y, ini);
+      y += PROW;
     }
   }
 
@@ -294,7 +343,7 @@ void setup() {
 
   // tela de boas-vindas enquanto conecta
   epd_poweron(); epd_clear();
-  text(40, 260, "Conectando...");
+  ptext(PM, 240, "Conectando...");
   epd_draw_grayscale_image(epd_full_screen(), framebuffer);
   epd_poweroff();
 
