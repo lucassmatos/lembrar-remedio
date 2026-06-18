@@ -55,7 +55,12 @@ export async function GET(req: NextRequest) {
   const log: DayLog = Object.assign({}, ...logs);
 
   // ── Doses de hoje (medicamentos daily-interval) ──
-  const doses = todaySlots(reminders, log, { date, tz }).map((slot) => {
+  // O mostrador mostra só o acionável: esconde o que já foi tomado e o que
+  // atrasou mais de 4h (LATE_HIDE_MIN). Mantém: a vencer, agora, e atraso recente.
+  const LATE_HIDE_MIN = 240;
+  const doses = todaySlots(reminders, log, { date, tz })
+    .filter((slot) => !slot.taken && now.minutes - slot.minutes <= LATE_HIDE_MIN)
+    .map((slot) => {
     const delta = slot.minutes - now.minutes;
     const state = slot.taken
       ? "done"
