@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Shell } from "../_components/shell";
 import { TelegramPanel } from "../_components/telegram-panel";
+import { DevicePanel } from "../_components/device-panel";
 import { PushOptIn } from "../_components/push-opt-in";
 import { NotifyProfilesPanel } from "../_components/notify-profiles-panel";
 import { ProfilesPanel } from "../_components/profiles-panel";
@@ -163,6 +164,10 @@ export default function SettingsPage() {
 
           <Section label="telegram">
             <TelegramPanel />
+          </Section>
+
+          <Section label="mostrador">
+            <DevicePanel />
           </Section>
 
           <Section label="instalar como app">

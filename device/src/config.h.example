@@ -1,0 +1,13 @@
+#pragma once
+// Copie este arquivo pra config.h e preencha. config.h fica FORA do git.
+
+#define WIFI_SSID   "SUA_REDE_2G"     // ESP32 só pega WiFi 2,4GHz!
+#define WIFI_PASS   "SUA_SENHA"
+
+// URL base do app, SEM barra no fim.
+//  - Teste local: http://IP-DO-SEU-MAC:3001  (ex.: http://192.168.15.4:3001)
+//  - Produção:    https://seu-app.vercel.app
+#define DEVICE_BASE_URL "http://192.168.15.4:3001"
+
+// Token gerado por: POST /api/device/token (ver README).
+#define DEVICE_TOKEN "cole-o-token-aqui"

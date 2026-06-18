@@ -575,6 +575,46 @@ export async function peekGenericToken(token: string): Promise<string | null> {
   return (res.Item.payload as string) ?? null;
 }
 
+// ── Token do mostrador físico (e-paper) ─────────────────────────────────────
+// Mapa token→sub vive em pair#<token>/pair com kind:"device" (sem TTL: é
+// permanente; revoga rotacionando). Mesmo padrão dos tokens de Telegram/sharing,
+// só muda o discriminador `kind` pra não consumir um pelo outro.
+export async function putDeviceToken(token: string, sub: string): Promise<void> {
+  await doc.send(
+    new PutCommand({
+      TableName: TABLE,
+      Item: { pk: PK.pair(token), sk: SK.pair, kind: "device", sub },
+    }),
+  );
+}
+
+export async function getDeviceTokenOwner(token: string): Promise<string | null> {
+  const res = await doc.send(
+    new GetCommand({ TableName: TABLE, Key: { pk: PK.pair(token), sk: SK.pair } }),
+  );
+  if (!res.Item || res.Item.kind !== "device") return null;
+  return (res.Item.sub as string) ?? null;
+}
+
+export async function deleteDeviceToken(token: string): Promise<void> {
+  // Só apaga se for mesmo um token de device — evita derrubar um pair token de
+  // Telegram/sharing por colisão de chave (mesmo padrão de consumePairToken).
+  try {
+    await doc.send(
+      new DeleteCommand({
+        TableName: TABLE,
+        Key: { pk: PK.pair(token), sk: SK.pair },
+        ConditionExpression: "#kind = :kind",
+        ExpressionAttributeNames: { "#kind": "kind" },
+        ExpressionAttributeValues: { ":kind": "device" },
+      }),
+    );
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return;
+    throw e;
+  }
+}
+
 export async function setChatMapping(chatId: number, sub: string): Promise<void> {
   await doc.send(
     new PutCommand({
@@ -638,6 +678,7 @@ export async function deleteUserCascade(sub: string): Promise<{ items: number }>
 
   // 3) Sweep remaining user# partition items (config, share links, etc.).
   let chatIdToCleanup: number | undefined;
+  let deviceTokenToCleanup: string | undefined;
   let lek: Record<string, unknown> | undefined;
   do {
     const res = await doc.send(
@@ -652,6 +693,9 @@ export async function deleteUserCascade(sub: string): Promise<{ items: number }>
     for (const it of items) {
       if (it.sk === SK.config && typeof it.chatId === "number") {
         chatIdToCleanup = it.chatId as number;
+      }
+      if (it.sk === SK.config && typeof it.deviceToken === "string") {
+        deviceTokenToCleanup = it.deviceToken as string;
       }
       await doc.send(
         new DeleteCommand({
@@ -672,6 +716,13 @@ export async function deleteUserCascade(sub: string): Promise<{ items: number }>
         Key: { pk: PK.chat(chatIdToCleanup), sk: SK.chat },
       }),
     );
+    totalDeleted++;
+  }
+
+  // 4b) Revoke the physical device token (pair#<token>) — senão um mostrador
+  //     ainda ligado continuaria autenticando depois da conta apagada.
+  if (deviceTokenToCleanup) {
+    await deleteDeviceToken(deviceTokenToCleanup);
     totalDeleted++;
   }
 

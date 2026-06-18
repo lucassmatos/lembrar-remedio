@@ -74,6 +74,14 @@ export async function getConfig(): Promise<Config> {
   return data.config;
 }
 
+export async function getDeviceToken(): Promise<{ deviceToken: string | null }> {
+  return jsonFetch<{ deviceToken: string | null }>("/api/device/token");
+}
+
+export async function createDeviceToken(): Promise<{ deviceToken: string }> {
+  return jsonFetch<{ deviceToken: string }>("/api/device/token", { method: "POST" });
+}
+
 export async function setConfig(patch: Partial<Config>): Promise<Config> {
   const data = await jsonFetch<{ config: Config }>("/api/config", {
     method: "PATCH",

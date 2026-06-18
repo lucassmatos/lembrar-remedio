@@ -202,6 +202,8 @@ export type Config = {
    * dono). Lista vazia = silencia tudo. Ver `lib/notify-prefs.ts`.
    */
   notifyProfileIds?: string[];
+  /** Token opaco do mostrador físico (e-paper). Autentica /api/device/*. */
+  deviceToken?: string;
   createdAt?: number;
 };
 
